@@ -96,7 +96,7 @@ TEST(EngineTests, testStdLibHolder)
    EXPECT_THROW(Atan2.execute(context), Backwards::Engine::ProgrammingException);
 
    frame.args[0] = std::make_shared<Backwards::Types::StringValue>("hello");
-   std::shared_ptr<Forwards::Engine::CellRefEval> bob = std::make_shared<Forwards::Engine::CellRefEval>(std::shared_ptr<Forwards::Engine::Expression>());
+   std::shared_ptr<Forwards::Engine::CellRefEval> bob = std::make_shared<Forwards::Engine::CellRefEval>(std::shared_ptr<Forwards::Types::ValueType>());
    frame.args[1] = std::make_shared<Backwards::Types::CellRefValue>(bob);
    EXPECT_NO_THROW(Atan2.execute(text));
    frame.args[0] = std::make_shared<Backwards::Types::FloatValue>(NumberSystem::getCurrentNumberSystem().fromString("6"));

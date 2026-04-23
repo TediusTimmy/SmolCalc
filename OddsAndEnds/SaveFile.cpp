@@ -30,12 +30,10 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include <fstream>
+#include <memory>
 
 #include "Forwards/Engine/Cell.h"
 #include "Forwards/Engine/SpreadSheet.h"
-#include "Forwards/Engine/Expression.h"
-
-#include "Forwards/Parser/Parser.h"
 
 #include "Backwards/Input/Lexer.h"
 #include "Backwards/Input/StringInput.h"
@@ -143,23 +141,13 @@ void SaveFile(const std::string& fileName, Forwards::Engine::SpreadSheet* theShe
           {
             file << "<td />";
           }
-         else if ((Forwards::Engine::VALUE == cell->type) && (nullptr == cell->value.get()))
+         else if (Forwards::Engine::VALUE == cell->type)
           {
-            file << "<td>=" << harden(cell->currentInput) << "</td>";
+            file << "<td>=" << harden(cell->value) << "</td>";
           }
          else
           {
-            if (Forwards::Engine::VALUE == cell->type)
-             {
-               file << "<td>=" << harden(cell->value->toString(col, row)) << "</td>";
-             }
-            else
-             {
-               std::string toPrint;
-               if (nullptr != cell->previousValue.get()) toPrint = cell->previousValue->toString(col, row, true);
-               else toPrint = cell->currentInput;
-               file << "<td>&lt;" << harden(toPrint) << "</td>";
-             }
+            file << "<td>&lt;" << harden(cell->value) << "</td>";
           }
          ++row;
        }
@@ -201,7 +189,7 @@ void LoadFile(const std::string& fileName, Forwards::Engine::SpreadSheet* sheet,
       sheet->initCellAt(0U, 0U);
       Forwards::Engine::Cell* cell = sheet->getCellAt(0U, 0U);
       cell->type = Forwards::Engine::LABEL;
-      cell->currentInput = "Failed to open file " + fileName;
+      cell->value = "Failed to open file " + fileName;
       return;
     }
 
@@ -218,7 +206,7 @@ void LoadFile(const std::string& fileName, Forwards::Engine::SpreadSheet* sheet,
       sheet->initCellAt(0U, 0U);
       Forwards::Engine::Cell* cell = sheet->getCellAt(0U, 0U);
       cell->type = Forwards::Engine::LABEL;
-      cell->currentInput = "Failed to open file " + fileName;
+      cell->value = "Failed to open file " + fileName;
       return;
     }
 
@@ -317,21 +305,21 @@ void LoadFile(const std::string& fileName, Forwards::Engine::SpreadSheet* sheet,
                      sheet->initCellAt(col, row);
                      Forwards::Engine::Cell* cell = sheet->getCellAt(col, row);
                      cell->type = Forwards::Engine::VALUE;
-                     cell->currentInput = content.substr(1U, std::string::npos);
+                     cell->value = content.substr(1U, std::string::npos);
                    }
                   else if ('<' == content[0])
                    {
                      sheet->initCellAt(col, row);
                      Forwards::Engine::Cell* cell = sheet->getCellAt(col, row);
                      cell->type = Forwards::Engine::LABEL;
-                     cell->currentInput = content.substr(1U, std::string::npos);
+                     cell->value = content.substr(1U, std::string::npos);
                    }
                   else
                    {
                      sheet->initCellAt(col, row);
                      Forwards::Engine::Cell* cell = sheet->getCellAt(col, row);
                      cell->type = Forwards::Engine::LABEL;
-                     cell->currentInput = content;
+                     cell->value = content;
                    }
                 }
                n = curCol.find("</td>", n);
@@ -391,7 +379,7 @@ void ImportCSV (const std::string& fileName, Forwards::Engine::SpreadSheet* shee
       sheet->initCellAt(0U, 0U);
       Forwards::Engine::Cell* cell = sheet->getCellAt(0U, 0U);
       cell->type = Forwards::Engine::LABEL;
-      cell->currentInput = "Failed to open file " + fileName;
+      cell->value = "Failed to open file " + fileName;
       return;
     }
 
@@ -416,7 +404,7 @@ void ImportCSV (const std::string& fileName, Forwards::Engine::SpreadSheet* shee
             sheet->initCellAt(col, row);
             Forwards::Engine::Cell* cell = sheet->getCellAt(col, row);
             cell->type = Forwards::Engine::LABEL;
-            cell->currentInput = curRow.substr(n, newn - n);
+            cell->value = curRow.substr(n, newn - n);
           }
          n = newn;
          if (n != std::string::npos)

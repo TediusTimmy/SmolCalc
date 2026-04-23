@@ -31,12 +31,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include "Forwards/Engine/CellRefEval.h"
 #include "Forwards/Types/CellRefValue.h"
-#include "Forwards/Engine/Expression.h"
 
 #include "Forwards/Types/FloatValue.h"
 #include "Forwards/Types/StringValue.h"
 #include "Forwards/Types/CellRangeValue.h"
 #include "Forwards/Engine/CellRangeExpand.h"
+
+#include "Forwards/Engine/CallingContext.h"
+#include "Forwards/Engine/ShuntingYard.h"
 
 #include "Backwards/Types/CellRefValue.h"
 #include "Backwards/Types/FloatValue.h"
@@ -52,15 +54,11 @@ namespace Forwards
 namespace Engine
  {
 
-   static const Types::CellRefValue* getReferencedCell(const std::shared_ptr<Expression>& expr)
+   static const Types::CellRefValue* getReferencedCell(const std::shared_ptr<Types::ValueType>& value)
     {
-      if (typeid(Constant) == typeid(*expr.get()))
+      if (typeid(Types::CellRefValue) == typeid(*value.get()))
        {
-         const Constant& temp1 = static_cast<const Constant&>(*expr.get());
-         if (typeid(Types::CellRefValue) == typeid(*temp1.value.get()))
-          {
-            return static_cast<const Types::CellRefValue*>(temp1.value.get());
-          }
+         return static_cast<const Types::CellRefValue*>(value.get());
        }
       return nullptr;
     }
@@ -78,7 +76,7 @@ namespace Engine
     {
     }
 
-   CellRefEval::CellRefEval(const std::shared_ptr<Expression>& value) : value(value)
+   CellRefEval::CellRefEval(const std::shared_ptr<Types::ValueType>& value) : value(value)
     {
     }
 
@@ -86,7 +84,7 @@ namespace Engine
     {
       try
        {
-         std::shared_ptr<Types::ValueType> result = value->evaluate(dynamic_cast<Forwards::Engine::CallingContext&>(context));
+         std::shared_ptr<Types::ValueType> result = ShuntingYard::Constant(dynamic_cast<Forwards::Engine::CallingContext&>(context), value);
          switch (result->getType())
           {
          case Types::FLOAT:

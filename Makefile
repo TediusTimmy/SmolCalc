@@ -244,7 +244,7 @@ obj/Backwards/ValueType.o: Backwards/src/Types/ValueType.cpp | obj/Backwards
 	$(CCP) $(CFLAGS) $(B_INCLUDE) -c -o obj/Backwards/ValueType.o Backwards/src/Types/ValueType.cpp
 
 
-lib/Forwards.a: obj/Forwards/CallingContext.o obj/Forwards/CellRangeExpand.o obj/Forwards/CellRefEval.o obj/Forwards/Expression.o obj/Forwards/StdLib.o obj/Forwards/Lexer.o obj/Forwards/CellEval.o obj/Forwards/ContextBuilder.o obj/Forwards/Parser.o obj/Forwards/SpreadSheet.o obj/Forwards/CellRangeValue.o obj/Forwards/CellRefValue.o obj/Forwards/FloatValue.o obj/Forwards/NilValue.o obj/Forwards/StringValue.o | lib
+lib/Forwards.a: obj/Forwards/CallingContext.o obj/Forwards/CellRangeExpand.o obj/Forwards/CellRefEval.o obj/Forwards/Expression.o obj/Forwards/ShuntingYard.o obj/Forwards/StdLib.o obj/Forwards/Lexer.o obj/Forwards/CellEval.o obj/Forwards/ContextBuilder.o obj/Forwards/SpreadSheet.o obj/Forwards/CellRangeValue.o obj/Forwards/CellRefValue.o obj/Forwards/FloatValue.o obj/Forwards/NilValue.o obj/Forwards/StringValue.o | lib
 	ar -rsc lib/Forwards.a obj/Forwards/*.o
 
 obj/Forwards/CallingContext.o: Forwards/src/Engine/CallingContext.cpp | obj/Forwards
@@ -259,6 +259,9 @@ obj/Forwards/CellRefEval.o: Forwards/src/Engine/CellRefEval.cpp | obj/Forwards
 obj/Forwards/Expression.o: Forwards/src/Engine/Expression.cpp | obj/Forwards
 	$(CCP) $(CFLAGS) $(F_INCLUDE) -c -o obj/Forwards/Expression.o Forwards/src/Engine/Expression.cpp
 
+obj/Forwards/ShuntingYard.o: Forwards/src/Engine/ShuntingYard.cpp | obj/Forwards
+	$(CCP) $(CFLAGS) $(F_INCLUDE) -c -o obj/Forwards/ShuntingYard.o Forwards/src/Engine/ShuntingYard.cpp
+
 obj/Forwards/StdLib.o: Forwards/src/Engine/StdLib.cpp | obj/Forwards
 	$(CCP) $(CFLAGS) $(F_INCLUDE) -c -o obj/Forwards/StdLib.o Forwards/src/Engine/StdLib.cpp
 
@@ -270,9 +273,6 @@ obj/Forwards/CellEval.o: Forwards/src/Parser/CellEval.cpp | obj/Forwards
 
 obj/Forwards/ContextBuilder.o: Forwards/src/Parser/ContextBuilder.cpp | obj/Forwards
 	$(CCP) $(CFLAGS) $(F_INCLUDE) -c -o obj/Forwards/ContextBuilder.o Forwards/src/Parser/ContextBuilder.cpp
-
-obj/Forwards/Parser.o: Forwards/src/Parser/Parser.cpp | obj/Forwards
-	$(CCP) $(CFLAGS) $(F_INCLUDE) -c -o obj/Forwards/Parser.o Forwards/src/Parser/Parser.cpp
 
 obj/Forwards/SpreadSheet.o: Forwards/src/Parser/SpreadSheet.cpp | obj/Forwards
 	$(CCP) $(CFLAGS) $(F_INCLUDE) -c -o obj/Forwards/SpreadSheet.o Forwards/src/Parser/SpreadSheet.cpp

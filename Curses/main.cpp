@@ -36,9 +36,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "Forwards/Engine/CallingContext.h"
 #include "Forwards/Engine/Cell.h"
 #include "Forwards/Engine/SpreadSheet.h"
-#include "Forwards/Engine/Expression.h"
 
-#include "Forwards/Parser/Parser.h"
 #include "Forwards/Parser/StringLogger.h"
 
 #include "Forwards/Types/ValueType.h"
@@ -195,7 +193,6 @@ int main (int argc, char ** argv)
 
    if (true == state.saveRequested)
     {
-      WaitToSave();
       SaveFile(saveFileName, &sheet, state.col_widths, state.def_col_width, fileLibs);
     }
 

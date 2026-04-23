@@ -48,9 +48,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "Forwards/Engine/CallingContext.h"
 #include "Forwards/Engine/Cell.h"
 #include "Forwards/Engine/SpreadSheet.h"
-#include "Forwards/Engine/Expression.h"
 
-#include "Forwards/Parser/Parser.h"
+#include "Forwards/Input/Lexer.h"
+#include "Forwards/Engine/ShuntingYard.h"
 
 #include "Forwards/Types/ValueType.h"
 
@@ -134,39 +134,28 @@ int main (int argc, char ** argv)
    std::getline(std::cin, inLine);
    while (inLine != "")
     {
-      Backwards::Input::StringInput console (inLine);
-      Forwards::Input::Lexer lexer (console);
-      std::shared_ptr<Forwards::Engine::Expression> res = Forwards::Parser::Parser::ParseFullExpression(lexer, map, logger, 0U, 0U);
-
-      if (nullptr != res.get())
+      try
        {
+         Backwards::Input::StringInput console (inLine);
+         Forwards::Input::Lexer lexer (console);
+         std::shared_ptr<Forwards::Types::ValueType> val = Forwards::Engine::ShuntingYard::evaluate(lexer, context);
 
-         std::cout << res->toString(0U, 0U) << std::endl;
-         try
+         if (nullptr != val.get())
           {
-            std::shared_ptr<Forwards::Types::ValueType> val = res->evaluate(context);
-
-            if (nullptr != val.get())
-             {
-               std::cout << val->toString(0U, 0U, false) << std::endl;
-             }
-            else
-             {
-               std::cout << "Evaluate returned NULL." << std::endl;
-             }
+            std::cout << val->toString(0U, 0U, false) << std::endl;
           }
-         catch (const Backwards::Types::TypedOperationException& e)
+         else
           {
-            std::cerr << "Caught runtime exception: " << e.what() << std::endl;
-          }
-         catch (const Backwards::Engine::FatalException& e)
-          {
-            std::cerr << "Caught Fatal Error: " << e.what() << std::endl;
+            std::cout << "Evaluate returned NULL." << std::endl;
           }
        }
-      else
+      catch (const Backwards::Types::TypedOperationException& e)
        {
-         std::cerr << "Parse returned NULL." << std::endl;
+         std::cerr << "Caught runtime exception: " << e.what() << std::endl;
+       }
+      catch (const Backwards::Engine::FatalException& e)
+       {
+         std::cerr << "Caught Fatal Error: " << e.what() << std::endl;
        }
 
       inLine = "";

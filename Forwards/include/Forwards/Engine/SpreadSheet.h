@@ -82,7 +82,7 @@ namespace Engine
       void removeCellShiftUp(size_t col, size_t row);
 
       std::string computeCell(CallingContext&, std::shared_ptr<Types::ValueType>& OUT, size_t col, size_t row);
-      std::shared_ptr<Types::ValueType> computeCell(CallingContext&, size_t col, size_t row, bool rethrow);
+      std::shared_ptr<Types::ValueType> computeCell(CallingContext&, size_t col, size_t row);
       void recalc(CallingContext&);
 
    private:

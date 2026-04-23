@@ -32,6 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef FORWARDS_ENGINE_CELLREFEVAL_H
 #define FORWARDS_ENGINE_CELLREFEVAL_H
 
+#include "Forwards/Types/ValueType.h"
+
 #include "Backwards/Engine/CellRefEval.h"
 
 namespace Forwards
@@ -40,15 +42,13 @@ namespace Forwards
 namespace Engine
  {
 
-   class Expression;
-
    class CellRefEval final : public Backwards::Engine::CellRefEval
     {
    public:
-      std::shared_ptr<Expression> value;
+      std::shared_ptr<Types::ValueType> value;
 
       CellRefEval();
-      explicit CellRefEval(const std::shared_ptr<Expression>&);
+      explicit CellRefEval(const std::shared_ptr<Types::ValueType>&);
 
       virtual std::shared_ptr<Backwards::Types::ValueType> evaluate (Backwards::Engine::CallingContext&) const override;
 

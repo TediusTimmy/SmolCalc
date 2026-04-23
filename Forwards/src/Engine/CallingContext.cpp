@@ -37,7 +37,7 @@ namespace Forwards
 namespace Engine
  {
 
-   CallingContext::CallingContext() : inUserInput(false), generation(1U), theSheet(nullptr), map(nullptr), names(nullptr)
+   CallingContext::CallingContext() : theSheet(nullptr), map(nullptr), names(nullptr)
     {
     }
 
@@ -70,7 +70,6 @@ namespace Engine
    void CallingContext::duplicate(std::shared_ptr<CallingContext> result)
     {
       Backwards::Engine::CallingContext::duplicate(result);
-      result->generation = generation;
       result->theSheet = theSheet;
       result->pushCell(topCell());
     }

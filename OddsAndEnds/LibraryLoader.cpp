@@ -47,7 +47,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "Forwards/Engine/CallingContext.h"
 #include "Forwards/Parser/ContextBuilder.h"
-#include "Forwards/Parser/Parser.h"
 #include "Forwards/Parser/StringLogger.h"
 
 #include "StdLib.h"

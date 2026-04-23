@@ -33,10 +33,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <list>
 
 #include "Backwards/Input/StringInput.h"
+#include "Forwards/Input/Lexer.h"
 
 #include "Forwards/Engine/CallingContext.h"
-#include "Forwards/Engine/Expression.h"
-#include "Forwards/Parser/Parser.h"
+#include "Forwards/Engine/ShuntingYard.h"
+#include "Forwards/Types/ValueType.h"
 
 int ReadBatches (int argc, char ** argv, int libEnd, std::list<std::string>& batches)
  {
@@ -65,28 +66,17 @@ void dumpLog(Backwards::Engine::Logger& logger); // From LibraryLoader
 
 void RunBatches (const std::list<std::string>& batches, Forwards::Engine::CallingContext& context)
  {
-   --context.generation;
    for (const std::string& batch : batches)
     {
       Forwards::Engine::CellFrame newFrame (nullptr, 0U, 0U);
-      std::shared_ptr<Forwards::Engine::Expression> value;
-
-      Backwards::Input::StringInput interlinked (batch);
-      Forwards::Input::Lexer lexer (interlinked);
-      value = Forwards::Parser::Parser::ParseFullExpression(lexer, *context.map, *context.logger, 0U, 0U);
-
-      if (nullptr == value.get())
-       {
-         std::cerr << "Error processing batch: " << batch << std::endl;
-         dumpLog(*context.logger);
-         continue;
-       }
 
       std::shared_ptr<Forwards::Types::ValueType> result;
       try
        {
+         Backwards::Input::StringInput interlinked (batch);
+         Forwards::Input::Lexer lexer (interlinked);
          context.pushCell(&newFrame);
-         result = value->evaluate(context);
+         result = Forwards::Engine::ShuntingYard::evaluate(lexer, context);
          context.popCell();
        }
       catch (const std::exception& e)

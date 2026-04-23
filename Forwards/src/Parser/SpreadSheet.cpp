@@ -31,15 +31,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include "Forwards/Engine/SpreadSheet.h"
 
-#include "Backwards/Engine/Logger.h"
 #include "Backwards/Input/StringInput.h"
+#include "Forwards/Input/Lexer.h"
 
 #include "Forwards/Engine/CallingContext.h"
 #include "Forwards/Engine/Cell.h"
-#include "Forwards/Engine/Expression.h"
-
-#include "Forwards/Parser/Parser.h"
-#include "Forwards/Parser/StringLogger.h"
+#include "Forwards/Engine/ShuntingYard.h"
 
 #include "Forwards/Types/ValueType.h"
 #include "Forwards/Types/StringValue.h"
@@ -243,71 +240,29 @@ namespace Engine
        }
       CellFrame newFrame (cell, col, row);
 
-         // If we have already evaluated this cell this generation, stop.
-      if ((context.generation == cell->previousGeneration) && (nullptr != cell->value.get()))
+         // If this is a LABEL, then set it as the value.
+      if (LABEL == cell->type)
        {
-         OUT = cell->previousValue;
+         OUT = std::make_shared<Types::StringValue>(cell->value);
          return result;
-       }
-
-         // If this is a LABEL, then set the value.
-      std::shared_ptr<Expression> value = cell->value;
-      if ((LABEL == cell->type) && (nullptr == value.get()))
-       {
-         value = std::make_shared<Constant>(Input::Token(), std::make_shared<Types::StringValue>(cell->currentInput));
-       }
-         // Else, this is a VALUE, and we need to parse it.
-      if (nullptr == value.get())
-       {
-         Backwards::Input::StringInput interlinked (cell->currentInput);
-         Input::Lexer lexer (interlinked);
-         Backwards::Engine::Logger* temp = context.logger;
-         Parser::StringLogger newLogger;
-         context.logger = &newLogger;
-         value = Parser::Parser::ParseFullExpression(lexer, *context.map, *context.logger, col, row);
-         context.logger = temp;
-         if (newLogger.logs.size() > 0U)
-          {
-            result = newLogger.logs[0U];
-          }
-       }
-
-         // If the parse failed, leave. Result will have the first parser message.
-      if (nullptr == value.get())
-       {
-         return result;
-       }
-
-         // If this is a regular update, update the cell. Eww....
-      if (false == context.inUserInput)
-       {
-         cell->currentInput = "";
-         cell->value = value;
        }
 
       try
        {
+         Backwards::Input::StringInput interlinked (cell->value);
+         Input::Lexer lexer (interlinked);
          context.pushCell(&newFrame);
-            // Evaluate the new cell.
-         context.topCell()->cell->inEvaluation = true;
-         context.topCell()->cell->recursed = false;
-         OUT = value->evaluate(context);
-         context.topCell()->cell->inEvaluation = false;
-         context.topCell()->cell->previousGeneration = context.generation;
-         context.topCell()->cell->previousValue = OUT;
+            // Evaluate the cell.
+         OUT = ShuntingYard::evaluate(lexer, context);
          context.popCell();
        }
       catch (const std::exception& e)
        {
          result = e.what();
-         context.topCell()->cell->inEvaluation = false;
-         context.topCell()->cell->previousGeneration = context.generation;
-         context.topCell()->cell->previousValue = OUT;
          context.popCell();
        }
       catch (...)
        {
-         context.topCell()->cell->inEvaluation = false;
          context.popCell();
        }
 
@@ -320,7 +275,7 @@ namespace Engine
     }
 
 
-   std::shared_ptr<Types::ValueType> SpreadSheet::computeCell(CallingContext& context, size_t col, size_t row, bool rethrow)
+   std::shared_ptr<Types::ValueType> SpreadSheet::computeCell(CallingContext& context, size_t col, size_t row)
     {
       std::shared_ptr<Types::ValueType> OUT;
 
@@ -331,65 +286,28 @@ namespace Engine
        }
       CellFrame newFrame (cell, col, row);
 
-         // If we have already evaluated this cell this generation, stop.
-      if (context.generation == cell->previousGeneration)
+         // If this is a LABEL, then set it as the value.
+      if (LABEL == cell->type)
        {
-         return cell->previousValue;
-       }
-
-         // If this is a LABEL, then set the value.
-      std::shared_ptr<Expression> value = cell->value;
-      if ((LABEL == cell->type) && (nullptr == value.get()))
-       {
-         value = std::make_shared<Constant>(Input::Token(), std::make_shared<Types::StringValue>(cell->currentInput));
-       }
-         // Else, this is a VALUE, and we need to parse it.
-      if (nullptr == value.get())
-       {
-         Backwards::Input::StringInput interlinked (cell->currentInput);
-         Input::Lexer lexer (interlinked);
-         Backwards::Engine::Logger* temp = context.logger;
-         Parser::StringLogger newLogger;
-         context.logger = &newLogger;
-         value = Parser::Parser::ParseFullExpression(lexer, *context.map, *context.logger, col, row);
-         context.logger = temp;
-       }
-
-         // If the parse failed, leave. Result will have the first parser message.
-      if (nullptr == value.get())
-       {
+         OUT = std::make_shared<Types::StringValue>(cell->value);
+         cell->previousValue = OUT;
          return OUT;
-       }
-
-         // If this is a regular update, update the cell. Eww....
-      if (false == context.inUserInput)
-       {
-         cell->currentInput = "";
-         cell->value = value;
        }
 
       try
        {
+         Backwards::Input::StringInput interlinked (cell->value);
+         Input::Lexer lexer (interlinked);
          context.pushCell(&newFrame);
-            // Evaluate the new cell.
-         context.topCell()->cell->inEvaluation = true;
-         context.topCell()->cell->recursed = false;
-         OUT = value->evaluate(context);
-         context.topCell()->cell->inEvaluation = false;
-         context.topCell()->cell->previousGeneration = context.generation;
+            // Evaluate the cell.
+         OUT = ShuntingYard::evaluate(lexer, context);
          context.topCell()->cell->previousValue = OUT;
          context.popCell();
        }
       catch (...)
        {
-         context.topCell()->cell->inEvaluation = false;
-         context.topCell()->cell->previousGeneration = context.generation;
          context.topCell()->cell->previousValue = OUT;
          context.popCell();
-         if (true == rethrow)
-          {
-            throw;
-          }
        }
 
       return OUT;
@@ -398,8 +316,6 @@ namespace Engine
 
    void SpreadSheet::recalc(CallingContext& context)
     {
-      context.inUserInput = false;
-      ++context.generation;
       context.names->clear();
       if (c_major) // Going in column-major order
        {
@@ -411,7 +327,7 @@ namespace Engine
                 {
                   for (size_t row = 0U; row < sheet[col].size(); ++row)
                    {
-                     (void) computeCell(context, col, row, false);
+                     (void) computeCell(context, col, row);
                    }
                 }
              }
@@ -421,7 +337,7 @@ namespace Engine
                 {
                   for (size_t row = sheet[col].size() - 1U; row != (static_cast<size_t>(0U) - 1U); --row)
                    {
-                     (void) computeCell(context, col, row, false);
+                     (void) computeCell(context, col, row);
                    }
                 }
              }
@@ -434,7 +350,7 @@ namespace Engine
                 {
                   for (size_t row = 0U; row < sheet[col].size(); ++row)
                    {
-                     (void) computeCell(context, col, row, false);
+                     (void) computeCell(context, col, row);
                    }
                 }
              }
@@ -444,7 +360,7 @@ namespace Engine
                 {
                   for (size_t row = sheet[col].size() - 1U; row != (static_cast<size_t>(0U) - 1U); --row)
                    {
-                     (void) computeCell(context, col, row, false);
+                     (void) computeCell(context, col, row);
                    }
                 }
              }
@@ -460,7 +376,7 @@ namespace Engine
                 {
                   for (size_t col = 0U; col < sheet.size(); ++col)
                    {
-                     (void) computeCell(context, col, row, false);
+                     (void) computeCell(context, col, row);
                    }
                 }
              }
@@ -470,7 +386,7 @@ namespace Engine
                 {
                   for (size_t col = 0U; col < sheet.size(); ++col)
                    {
-                     (void) computeCell(context, col, row, false);
+                     (void) computeCell(context, col, row);
                    }
                 }
              }
@@ -483,7 +399,7 @@ namespace Engine
                 {
                   for (size_t col = sheet.size() - 1U; col != (static_cast<size_t>(0U) - 1U); --col)
                    {
-                     (void) computeCell(context, col, row, false);
+                     (void) computeCell(context, col, row);
                    }
                 }
              }
@@ -493,13 +409,12 @@ namespace Engine
                 {
                   for (size_t col = sheet.size() - 1U; col != (static_cast<size_t>(0U) - 1U); --col)
                    {
-                     (void) computeCell(context, col, row, false);
+                     (void) computeCell(context, col, row);
                    }
                 }
              }
           }
        }
-      ++context.generation;
     }
 
  } // namespace Engine

@@ -33,7 +33,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define FORWARDS_ENGINE_CELL_H
 
 #include "Forwards/Types/ValueType.h"
-#include "Forwards/Engine/Expression.h"
 
 namespace Forwards
  {
@@ -52,14 +51,10 @@ namespace Engine
     {
    public:
       CellType type;
-      std::string currentInput;
-      std::shared_ptr<Expression> value;
+      std::string value;
       std::shared_ptr<Types::ValueType> previousValue;
-      size_t previousGeneration;
-      bool inEvaluation;
-      bool recursed;
 
-      Cell() : type(ERROR), previousGeneration(0U), inEvaluation(false), recursed(false) { }
+      Cell() : type(ERROR) { }
     };
 
  } // namespace Engine

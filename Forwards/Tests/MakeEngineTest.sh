@@ -23,7 +23,7 @@ mv ./*.o ../../obj
 ######
 
 cd ../../bin
-g++ -o EngineTest -Wall -Wextra -Wpedantic --coverage -O0 -I../../../External/googletest/include -I../include -I../../Numbers -I../../Backwards/include ../Tests/ExpressionTest.cpp ../obj/*.o ../../../External/googletest/lib/libgtest.a ../../../External/googletest/lib/libgtest_main.a ../obj/*.a -lmpfr -lgmp
+g++ -o EngineTest -Wall -Wextra -Wpedantic --coverage -O0 -I../../../External/googletest/include -I../include -I../../Numbers -I../../Backwards/include ../Tests/ExpressionTest.cpp ../Tests/ShuntingYardTest.cpp ../obj/*.o ../../../External/googletest/lib/libgtest.a ../../../External/googletest/lib/libgtest_main.a ../obj/*.a -lmpfr -lgmp
 ../../../External/lcov/bin/lcov --rc lcov_branch_coverage=1 --no-external --capture --initial --directory ../src/Engine --directory ../include/Forwards/Engine --output-file Engine_Base.info
 ./EngineTest.exe
 ../../../External/lcov/bin/lcov --rc lcov_branch_coverage=1 --no-external --capture --directory ../src/Engine --directory ../include/Forwards/Engine --directory . --output-file Engine_Run.info

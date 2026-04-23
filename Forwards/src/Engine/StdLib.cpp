@@ -31,7 +31,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include "Forwards/Engine/StdLib.h"
 
-#include "Forwards/Engine/Expression.h"
 #include "Forwards/Engine/CallingContext.h"
 
 #include "Forwards/Engine/CellRefEval.h"

@@ -106,11 +106,11 @@ Edit mode is entered when you start entering a label or formula.
 * Home : Move cursor to beginning of input
 * End : Move cursor to end of input
 
-The sheet automatically recalculates after you finish entering a label or formula, and when you paste a cell. If a cell references a cell that hasn't been computed yet, then that cell will be computed, unless we are already in the process of computing that cell (circular reference).
+The sheet automatically recalculates after you finish entering a label or formula, and when you paste a cell. If a cell references a cell that hasn't been computed yet, then the stale value of that cell will be used.
 
 ### Background Processing Notes
 
-The program handles sheet updates in a background thread. There is an indicator next to the sheet recalculation order as to whether background processing is occurring. If there is a `#` in the top-right corner of the screen, the sheet is being processed. During sheet processing, no commands that modify the sheet will be executed. In addition, the second line of information will not be displayed for cells that haven't processed yet. Saving ... ought to work. If you save while exiting, the program will wait for the sheet to recalculate before completely exiting. (If your sheet seems hung on a computation, save with `W` and then `qn`.)
+The program handles sheet updates in a background thread. There is an indicator next to the sheet recalculation order as to whether background processing is occurring. If there is a `#` in the top-right corner of the screen, the sheet is being processed. During sheet processing, no commands that modify the sheet will be executed. In addition, the second line of information will not be displayed for cells that haven't processed yet. Saving ought to work.
 
 
 ## Entering Data
@@ -165,7 +165,7 @@ This adds some transcendental functions that I didn't want to include at first. 
 
 # Backwards
 
-All of the scripting utilizes this language called Backwards. All functions that are exposed to the spreadsheet must have a name that is ALL CAPS and contain no numbers or underscores. This function must take one argument, and the argument is the array of arguments. Note, that it does lazy evaluation, so only the arguments to a function call that the function explicitly asks for will be evaluated. Also, also note: there is no way for a function to change the value of a cell except by returning the value that the current cell ought to have; there is no way for a function to look up the value of an arbitrary cell, all cells that it is to consider MUST be passed to it.
+All of the scripting utilizes this language called Backwards. All functions that are exposed to the spreadsheet must have a name that is ALL CAPS and contain no numbers or underscores. This function must take one argument, and the argument is the array of arguments. Also, also note: there is no way for a function to change the value of a cell except by returning the value that the current cell ought to have; there is no way for a function to look up the value of an arbitrary cell, all cells that it is to consider MUST be passed to it.
 
 Example:  
 ```
@@ -177,7 +177,7 @@ set IF to function (x) is
 end
 ```
 
-Note that the call `@IF(3;5;1/0)` is completely valid. The 'else' clause will not be evaluated because it is never used, so the division-by-zero exception is never thrown.
+Note that the call `@IF(3;5;1/0)` will now evaluate `1/0` before passing it into the function.
 
 ## The Language
 This is the language as implemented. Some of the GoogleTests have good examples, others, not so much.

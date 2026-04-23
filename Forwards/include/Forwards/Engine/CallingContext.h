@@ -39,14 +39,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace Forwards
  {
 
+namespace Types
+ {
+   class ValueType;
+ }
+
 namespace Engine
  {
 
    class Cell;
    class SpreadSheet;
-   class Expression;
    typedef std::map<std::string, std::shared_ptr<Backwards::Engine::Getter> > GetterMap;
-   typedef std::map<std::string, std::shared_ptr<Expression> > NameMap;
+   typedef std::map<std::string, std::shared_ptr<Types::ValueType> > NameMap;
 
    class CellFrame final
     {
@@ -63,8 +67,6 @@ namespace Engine
    public:
       CallingContext();
 
-      bool inUserInput;
-      size_t generation;
       SpreadSheet* theSheet;
       GetterMap* map;
       NameMap* names;

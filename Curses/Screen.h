@@ -32,6 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef SCREEN_H
 #define SCREEN_H
 
+#include <deque>
+
 enum MODE
  {
    CELL_MODIFICATION,
@@ -62,7 +64,7 @@ public:
    std::vector<int> col_widths;
 
    std::vector<Forwards::Engine::CellType> yankedType;
-   std::vector<std::shared_ptr<Forwards::Engine::Expression> > yanked;
+   std::vector<std::string> yanked;
    size_t yankedCols;
    size_t m_col;
    size_t m_row;
@@ -75,7 +77,6 @@ public:
 void InitScreen(SharedData&);
 void UpdateScreen(SharedData&);
 int ProcessInput(SharedData&);
-void WaitToSave(void);
 void DestroyScreen(void);
 
 #endif /* SCREEN_H */

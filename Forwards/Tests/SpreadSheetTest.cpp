@@ -31,12 +31,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include "gtest/gtest.h"
 
-#include "Forwards/Engine/Expression.h"
 #include "Forwards/Engine/CallingContext.h"
 #include "Forwards/Engine/SpreadSheet.h"
 #include "Forwards/Engine/Cell.h"
 
 #include "Forwards/Parser/StringLogger.h"
+#include "Forwards/Input/Token.h"
 
 #include "Forwards/Types/FloatValue.h"
 #include "Forwards/Types/StringValue.h"
@@ -98,59 +98,42 @@ TEST(EngineTests, testSpreadSheet_EasyCases)
    std::string hello = "Hello";
    Forwards::Engine::Cell* cell = shet.getCellAt(2U, 2U);
    cell->type = Forwards::Engine::LABEL;
-   cell->currentInput = hello;
+   cell->value = hello;
 
       // Preconditions
-   EXPECT_EQ(nullptr, cell->value.get());
    EXPECT_EQ(nullptr, cell->previousValue.get());
-   cell->previousGeneration = 12U;
-   context.inUserInput = true;
 
    EXPECT_EQ("", shet.computeCell(context, res, 2U, 2U));
 
-   EXPECT_EQ(nullptr, cell->value.get()); // Post conditions: no change
-   EXPECT_EQ(hello, cell->currentInput);
-   EXPECT_NE(nullptr, cell->previousValue.get()); // New post conditions : these are always updated.
-   EXPECT_EQ(1U, cell->previousGeneration);
+   EXPECT_EQ(hello, cell->value);
+   EXPECT_EQ(nullptr, cell->previousValue.get()); // New conditions : not updated for return string.
 
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get())); // Returned hello
    EXPECT_EQ(hello, std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value);
 
 
-   context.inUserInput = false; // regular update
-   context.generation = 6U;
-
    EXPECT_EQ("", shet.computeCell(context, res, 2U, 2U));
 
-   EXPECT_NE(nullptr, cell->value.get()); // Post conditions: cell updated
-   EXPECT_EQ("", cell->currentInput);
-   EXPECT_EQ(res.get(), cell->previousValue.get());
-   EXPECT_EQ(6U, cell->previousGeneration);
+   EXPECT_NE("", cell->value); // Post conditions: cell not updated
+   EXPECT_NE(res.get(), cell->previousValue.get());
+   EXPECT_NE(nullptr, res.get());
+   EXPECT_EQ(nullptr, cell->previousValue.get());
 
    cell->previousValue.reset();
    EXPECT_EQ("", shet.computeCell(context, res, 2U, 2U));
-   EXPECT_EQ(nullptr, res.get());
-
-   context.inUserInput = true;
-   EXPECT_EQ("", shet.computeCell(context, res, 2U, 2U));
-   EXPECT_EQ(nullptr, res.get());
+   EXPECT_NE(nullptr, res.get());
 
 
-   EXPECT_NE(nullptr, cell->value.get()); // Pre conditions
-   EXPECT_EQ("", cell->currentInput);
+   cell->previousValue.reset();
+   EXPECT_NE("", cell->value); // Pre conditions
    EXPECT_EQ(nullptr, cell->previousValue.get());
-   EXPECT_EQ(6U, cell->previousGeneration);
-   context.generation = 6U;
 
-   context.inUserInput = true;
    EXPECT_EQ("", shet.computeCell(context, res, 2U, 2U));
 
-   EXPECT_NE(nullptr, cell->value.get()); // Post conditions: no change
-   EXPECT_EQ("", cell->currentInput);
+   EXPECT_NE("", cell->value); // Post conditions: cell not updated
    EXPECT_EQ(nullptr, cell->previousValue.get());
-   EXPECT_EQ(6U, cell->previousGeneration);
 
-   ASSERT_EQ(nullptr, res.get());
+   ASSERT_NE(nullptr, res.get());
  }
 
 TEST(EngineTests, testSpreadSheet_ParseCases)
@@ -169,25 +152,19 @@ TEST(EngineTests, testSpreadSheet_ParseCases)
 
    Forwards::Engine::Cell* cell = shet.getCellAt(0U, 0U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "12 * * 3";
+   cell->value = "12 * * 3";
 
-   EXPECT_EQ("Expected >primary expression< but found >*< at 6", shet.computeCell(context, res, 0U, 0U));
+   EXPECT_EQ("Data stack underflow at 4", shet.computeCell(context, res, 0U, 0U));
    EXPECT_EQ(nullptr, res.get());
 
-   context.inUserInput = true;
-   cell->currentInput = "12 * 3";
+   cell->value = "12 * 3";
 
-   EXPECT_EQ(nullptr, cell->value.get());
    EXPECT_EQ(nullptr, cell->previousValue.get());
-   cell->previousGeneration = 0U;
-   context.inUserInput = true;
 
    EXPECT_EQ("", shet.computeCell(context, res, 0U, 0U));
 
-   EXPECT_EQ(nullptr, cell->value.get()); // Post conditions: no change
-   EXPECT_EQ("12 * 3", cell->currentInput);
-   EXPECT_NE(nullptr, cell->previousValue.get()); // New post conditions : these are always updated.
-   EXPECT_EQ(1U, cell->previousGeneration);
+   EXPECT_EQ("12 * 3", cell->value); // Post conditions: no change
+   EXPECT_EQ(nullptr, cell->previousValue.get());
 
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get())); // Returned 36.0
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("36"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
@@ -205,31 +182,28 @@ TEST(EngineTests, testSpreadSheet_ExceptionCases)
    Forwards::Engine::SpreadSheet shet;
    context.theSheet = &shet;
 
-   context.inUserInput = true;
-
    shet.initCellAt(0U, 0U);
 
    Forwards::Engine::Cell* cell = shet.getCellAt(0U, 0U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "12";
+   cell->previousValue = std::make_shared<Forwards::Types::FloatValue>(NumberSystem::getCurrentNumberSystem().fromString("12"));
 
    shet.initCellAt(1U, 0U);
 
    cell = shet.getCellAt(1U, 0U);
    cell->type = Forwards::Engine::LABEL;
-   cell->currentInput = "12";
+   cell->previousValue = std::make_shared<Forwards::Types::StringValue>("12");
 
    shet.initCellAt(1U, 1U);
 
    cell = shet.getCellAt(1U, 1U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "A0+B0";
+   cell->value = "A0+B0";
 
    EXPECT_EQ("Error adding Float to String at 3", shet.computeCell(context, res, 1U, 1U));
    EXPECT_EQ(nullptr, res.get());
 
-   ++context.generation;
-   EXPECT_NO_THROW(shet.computeCell(context, 1U, 1U, false));
+   EXPECT_NO_THROW(shet.computeCell(context, 1U, 1U));
 
     {
       Backwards::Engine::Scope global;
@@ -259,9 +233,8 @@ TEST(EngineTests, testSpreadSheet_ExceptionCases)
 
       ASSERT_TRUE(map.end() != map.find("BAD"));
 
-      cell->currentInput = "@BAD";
+      cell->value = "@BAD";
 
-      ++context.generation;
       EXPECT_EQ("Error adding Float to String", shet.computeCell(context, res, 1U, 1U));
       EXPECT_EQ(nullptr, res.get());
     }
@@ -286,13 +259,13 @@ TEST(EngineTests, testSpreadSheet_Recalc_TBLR) // A1 is evaluated first. It call
 
    Forwards::Engine::Cell* cell = shet.getCellAt(0U, 0U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "B1";
-   cell->previousValue = makeFloatValue("2");
+   cell->value = "B1";
+   cell->previousValue = makeFloatValue("3");
 
    cell = shet.getCellAt(1U, 1U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "A0";
-   cell->previousValue = makeFloatValue("3");
+   cell->value = "A0";
+   cell->previousValue = makeFloatValue("2");
 
    shet.recalc(context);
 
@@ -321,13 +294,13 @@ TEST(EngineTests, testSpreadSheet_Recalc_BTRL) // B2 is evaluated first. It call
 
    Forwards::Engine::Cell* cell = shet.getCellAt(0U, 0U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "B1";
-   cell->previousValue = makeFloatValue("2");
+   cell->value = "B1";
+   cell->previousValue = makeFloatValue("3");
 
    cell = shet.getCellAt(1U, 1U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "A0";
-   cell->previousValue = makeFloatValue("3");
+   cell->value = "A0";
+   cell->previousValue = makeFloatValue("2");
 
    shet.recalc(context);
 
@@ -356,178 +329,53 @@ TEST(EngineTests, testSpreadSheet_Recalc_NoHang)
 
    Forwards::Engine::Cell* cell = shet.getCellAt(0U, 5U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "12";
+   cell->value = "12";
    cell = shet.getCellAt(1U, 2U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "15";
+   cell->value = "15";
    cell = shet.getCellAt(4U, 0U);
    cell->type = Forwards::Engine::VALUE;
-   cell->currentInput = "A0";
-
-   size_t lastGeneration = context.generation;
-   EXPECT_NE(0U, lastGeneration);
-   for (size_t col = 0; col < shet.sheet.size(); ++col)
-    {
-      for (size_t row = 0; row < shet.sheet[col].size(); ++row)
-       {
-         cell = shet.getCellAt(col, row);
-         if (nullptr != cell)
-          {
-            EXPECT_EQ(0U, cell->previousGeneration);
-          }
-       }
-    }
+   cell->value = "A0";
 
    shet.c_major = true;
    shet.top_down = true;
    shet.left_right = true;
    shet.recalc(context);
 
-   EXPECT_NE(lastGeneration, context.generation);
-   for (size_t col = 0; col < shet.sheet.size(); ++col)
-    {
-      for (size_t row = 0; row < shet.sheet[col].size(); ++row)
-       {
-         cell = shet.getCellAt(col, row);
-         if (nullptr != cell)
-          {
-            EXPECT_EQ(context.generation, cell->previousGeneration + 1);
-          }
-       }
-    }
-
-   lastGeneration = context.generation;
    shet.c_major = true;
    shet.top_down = true;
    shet.left_right = false;
    shet.recalc(context);
 
-   EXPECT_NE(lastGeneration, context.generation);
-   for (size_t col = 0; col < shet.sheet.size(); ++col)
-    {
-      for (size_t row = 0; row < shet.sheet[col].size(); ++row)
-       {
-         cell = shet.getCellAt(col, row);
-         if (nullptr != cell)
-          {
-            EXPECT_EQ(context.generation, cell->previousGeneration + 1);
-          }
-       }
-    }
-
-   lastGeneration = context.generation;
    shet.c_major = true;
    shet.top_down = false;
    shet.left_right = true;
    shet.recalc(context);
 
-   EXPECT_NE(lastGeneration, context.generation);
-   for (size_t col = 0; col < shet.sheet.size(); ++col)
-    {
-      for (size_t row = 0; row < shet.sheet[col].size(); ++row)
-       {
-         cell = shet.getCellAt(col, row);
-         if (nullptr != cell)
-          {
-            EXPECT_EQ(context.generation, cell->previousGeneration + 1);
-          }
-       }
-    }
-
-   lastGeneration = context.generation;
    shet.c_major = true;
    shet.top_down = false;
    shet.left_right = false;
    shet.recalc(context);
 
-   EXPECT_NE(lastGeneration, context.generation);
-   for (size_t col = 0; col < shet.sheet.size(); ++col)
-    {
-      for (size_t row = 0; row < shet.sheet[col].size(); ++row)
-       {
-         cell = shet.getCellAt(col, row);
-         if (nullptr != cell)
-          {
-            EXPECT_EQ(context.generation, cell->previousGeneration + 1);
-          }
-       }
-    }
-
-   lastGeneration = context.generation;
    shet.c_major = false;
    shet.top_down = true;
    shet.left_right = true;
    shet.recalc(context);
 
-   EXPECT_NE(lastGeneration, context.generation);
-   for (size_t col = 0; col < shet.sheet.size(); ++col)
-    {
-      for (size_t row = 0; row < shet.sheet[col].size(); ++row)
-       {
-         cell = shet.getCellAt(col, row);
-         if (nullptr != cell)
-          {
-            EXPECT_EQ(context.generation, cell->previousGeneration + 1);
-          }
-       }
-    }
-
-   lastGeneration = context.generation;
    shet.c_major = false;
    shet.top_down = true;
    shet.left_right = false;
    shet.recalc(context);
 
-   EXPECT_NE(lastGeneration, context.generation);
-   for (size_t col = 0; col < shet.sheet.size(); ++col)
-    {
-      for (size_t row = 0; row < shet.sheet[col].size(); ++row)
-       {
-         cell = shet.getCellAt(col, row);
-         if (nullptr != cell)
-          {
-            EXPECT_EQ(context.generation, cell->previousGeneration + 1);
-          }
-       }
-    }
-
-   lastGeneration = context.generation;
    shet.c_major = false;
    shet.top_down = false;
    shet.left_right = true;
    shet.recalc(context);
 
-   EXPECT_NE(lastGeneration, context.generation);
-   for (size_t col = 0; col < shet.sheet.size(); ++col)
-    {
-      for (size_t row = 0; row < shet.sheet[col].size(); ++row)
-       {
-         cell = shet.getCellAt(col, row);
-         if (nullptr != cell)
-          {
-            EXPECT_EQ(context.generation, cell->previousGeneration + 1);
-          }
-       }
-    }
-
-   lastGeneration = context.generation;
    shet.c_major = false;
    shet.top_down = false;
    shet.left_right = false;
    shet.recalc(context);
-
-   EXPECT_NE(lastGeneration, context.generation);
-   for (size_t col = 0; col < shet.sheet.size(); ++col)
-    {
-      for (size_t row = 0; row < shet.sheet[col].size(); ++row)
-       {
-         cell = shet.getCellAt(col, row);
-         if (nullptr != cell)
-          {
-            EXPECT_EQ(context.generation, cell->previousGeneration + 1);
-          }
-       }
-    }
  }
 
 TEST(EngineTests, testSpreadSheet_ClearRowColumn)

@@ -29,11 +29,14 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#include "Forwards/Engine/Expression.h"
+#include "Forwards/Engine/ShuntingYard.h"
+#include "Forwards/Engine/CallingContext.h"
 #include "Forwards/Engine/SpreadSheet.h"
 #include "Forwards/Engine/Cell.h"
 #include "Forwards/Engine/CellRefEval.h"
 #include "Forwards/Engine/CellRangeExpand.h"
+
+#include "Forwards/Input/Token.h"
 
 #include "Forwards/Types/FloatValue.h"
 #include "Forwards/Types/StringValue.h"
@@ -48,6 +51,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "Backwards/Types/CellRefValue.h"
 #include "Backwards/Types/CellRangeValue.h"
 
+#include "Backwards/Engine/Expression.h"
 #include "Backwards/Engine/ProgrammingException.h"
 
 #include "NumberSystem.h"
@@ -60,72 +64,25 @@ namespace Forwards
 namespace Engine
  {
 
-   static std::string wrapInParens(const std::string& me, int prevLevel, int myLevel)
-    {
-      if (prevLevel < 0)
-       {
-         if (std::abs(prevLevel) >= myLevel)
-          {
-            return "(" + me + ")";
-          }
-       }
-      else
-       {
-         if (prevLevel > myLevel)
-          {
-            return "(" + me + ")";
-          }
-       }
-      return me;
-    }
-
-   Expression::Expression(const Input::Token& token) : token(token)
-    {
-    }
-
-   std::string Expression::constructMessage(const std::string& e) const
-    {
-      return constructMessage(e, token);
-    }
-
-   std::string Expression::constructMessage(const std::string& e, const Input::Token& token)
+   std::string ShuntingYard::constructMessage(const std::string& e, const Input::Token& token)
     {
       std::stringstream str;
       str << e << " at " << token.location;
       throw Backwards::Types::TypedOperationException(str.str());
     }
 
-   std::shared_ptr<Types::FloatValue> Expression::FLOAT_ONE()
+   std::shared_ptr<Types::FloatValue> ShuntingYard::FLOAT_ONE()
     {
       return std::make_shared<Types::FloatValue>(NumberSystem::getCurrentNumberSystem().FLOAT_ONE);
     }
 
-   std::shared_ptr<Types::FloatValue> Expression::FLOAT_ZERO()
+   std::shared_ptr<Types::FloatValue> ShuntingYard::FLOAT_ZERO()
     {
       return std::make_shared<Types::FloatValue>(NumberSystem::getCurrentNumberSystem().FLOAT_ZERO);
     }
 
 
-   Constant::Constant(const Input::Token& token, const std::shared_ptr<Types::ValueType>& value) : Expression(token), value(value)
-    {
-    }
-
-   std::shared_ptr<Types::ValueType> Constant::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> result = value;
-      if (Types::CELL_REF == result->getType())
-       {
-         result = finalConst(std::static_pointer_cast<Types::CellRefValue>(result), context);
-       }
-      return result;
-    }
-
-   std::string Constant::toString(size_t col, size_t row, int) const
-    {
-      return value->toString(col, row, true);
-    }
-
-   std::shared_ptr<Types::ValueType> Constant::finalConst (std::shared_ptr<Types::CellRefValue> value, CallingContext& context)
+   static std::shared_ptr<Types::ValueType> finalConst (std::shared_ptr<Types::CellRefValue> value, CallingContext& context)
     {
          // Determine column and row.
       int64_t col, row;
@@ -157,21 +114,7 @@ namespace Engine
          return std::make_shared<Types::NilValue>();
        }
 
-         // If we are currently evaluating this cell, stop.
-      if (true == cell->inEvaluation)
-       {
-         std::shared_ptr<Types::ValueType> result = cell->previousValue;
-         if (nullptr == result.get())
-          {
-            result = std::make_shared<Types::NilValue>();
-          }
-         cell->recursed = true;
-         return result;
-       }
-
-         // Guess we need to do work.
-      std::shared_ptr<Types::ValueType> result;
-      result = context.theSheet->computeCell(context, col, row, true);
+      std::shared_ptr<Types::ValueType> result = cell->previousValue;
       if (nullptr == result.get())
        {
          result = std::make_shared<Types::NilValue>();
@@ -179,19 +122,20 @@ namespace Engine
       return result;
     }
 
-
-#define OperationConstructor(x) \
-   x::x(const Input::Token& token, const std::shared_ptr<Expression>& lhs, const std::shared_ptr<Expression>& rhs) : \
-      Expression(token), lhs(lhs), rhs(rhs) \
-    { \
+   std::shared_ptr<Types::ValueType> ShuntingYard::Constant (CallingContext& context, const std::shared_ptr<Types::ValueType>& value)
+    {
+      std::shared_ptr<Types::ValueType> result = value;
+      if (Types::CELL_REF == result->getType())
+       {
+         result = finalConst(std::static_pointer_cast<Types::CellRefValue>(result), context);
+       }
+      return result;
     }
 
-   OperationConstructor(Plus)
-
-   std::shared_ptr<Types::ValueType> Plus::evaluate (CallingContext& context) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Plus (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -207,7 +151,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error adding " + LHS->getTypeName() + " to " + RHS->getTypeName());
+            constructMessage("Error adding " + LHS->getTypeName() + " to " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -222,28 +166,21 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error adding " + LHS->getTypeName() + " to " + RHS->getTypeName());
+            constructMessage("Error adding " + LHS->getTypeName() + " to " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error adding " + LHS->getTypeName() + " to " + RHS->getTypeName());
+         constructMessage("Error adding " + LHS->getTypeName() + " to " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string Plus::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Minus (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 2) + "+" + rhs->toString(col, row, 2), level, 2);
-    }
-
-   OperationConstructor(Minus)
-
-   std::shared_ptr<Types::ValueType> Minus::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -259,7 +196,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error subtracting " + RHS->getTypeName() + " from " + LHS->getTypeName());
+            constructMessage("Error subtracting " + RHS->getTypeName() + " from " + LHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -274,28 +211,21 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error subtracting " + RHS->getTypeName() + " from " + LHS->getTypeName());
+            constructMessage("Error subtracting " + RHS->getTypeName() + " from " + LHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error subtracting " + RHS->getTypeName() + " from " + LHS->getTypeName());
+         constructMessage("Error subtracting " + RHS->getTypeName() + " from " + LHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string Minus::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Multiply (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 2) + "-" + rhs->toString(col, row, -2), level, 2);
-    }
-
-   OperationConstructor(Multiply)
-
-   std::shared_ptr<Types::ValueType> Multiply::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -311,7 +241,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error multiplying " + LHS->getTypeName() + " by " + RHS->getTypeName());
+            constructMessage("Error multiplying " + LHS->getTypeName() + " by " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -326,28 +256,21 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error multiplying " + LHS->getTypeName() + " by " + RHS->getTypeName());
+            constructMessage("Error multiplying " + LHS->getTypeName() + " by " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error multiplying " + LHS->getTypeName() + " by " + RHS->getTypeName());
+         constructMessage("Error multiplying " + LHS->getTypeName() + " by " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string Multiply::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Divide (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 3) + "*" + rhs->toString(col, row, 3), level, 3);
-    }
-
-   OperationConstructor(Divide)
-
-   std::shared_ptr<Types::ValueType> Divide::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -363,7 +286,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error dividing " + LHS->getTypeName() + " by " + RHS->getTypeName());
+            constructMessage("Error dividing " + LHS->getTypeName() + " by " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -378,28 +301,21 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error dividing " + LHS->getTypeName() + " by " + RHS->getTypeName());
+            constructMessage("Error dividing " + LHS->getTypeName() + " by " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error dividing " + LHS->getTypeName() + " by " + RHS->getTypeName());
+         constructMessage("Error dividing " + LHS->getTypeName() + " by " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string Divide::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Cat (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 3) + "/" + rhs->toString(col, row, -3), level, 3);
-    }
-
-   OperationConstructor(Cat)
-
-   std::shared_ptr<Types::ValueType> Cat::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -418,7 +334,7 @@ namespace Engine
             break;
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error catenating " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error catenating " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
@@ -435,7 +351,7 @@ namespace Engine
             break;
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error catenating " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error catenating " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -452,37 +368,23 @@ namespace Engine
             break;
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error catenating " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error catenating " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error catenating " + LHS->getTypeName() + " with " + RHS->getTypeName());
+         constructMessage("Error catenating " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string Cat::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::MakeRange (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 2) + "&" + rhs->toString(col, row, 2), level, 2);
-    }
-
-   OperationConstructor(MakeRange)
-
-   std::shared_ptr<Types::ValueType> MakeRange::evaluate (CallingContext& context) const
-    {
-         // Pull out the Cell Refs that OUGHT to be our arguments. We need the RAW references.
-      std::shared_ptr<Constant> LHSc = std::dynamic_pointer_cast<Constant>(lhs);
-      std::shared_ptr<Constant> RHSc = std::dynamic_pointer_cast<Constant>(rhs);
-      if ((nullptr == LHSc.get()) || (nullptr == RHSc.get()))
-       {
-         throw Backwards::Engine::ProgrammingException("The arguments to MakeRange weren't Cell Refs.");
-       }
-      std::shared_ptr<Types::CellRefValue> LHS = std::dynamic_pointer_cast<Types::CellRefValue>(LHSc->value);
-      std::shared_ptr<Types::CellRefValue> RHS = std::dynamic_pointer_cast<Types::CellRefValue>(RHSc->value);
+      std::shared_ptr<Types::CellRefValue> LHS = std::dynamic_pointer_cast<Types::CellRefValue>(lhs);
+      std::shared_ptr<Types::CellRefValue> RHS = std::dynamic_pointer_cast<Types::CellRefValue>(rhs);
       if ((nullptr == LHS.get()) || (nullptr == RHS.get()))
        {
-         throw Backwards::Engine::ProgrammingException("The arguments to MakeRange weren't Cell Refs.");
+         constructMessage("Error MakeRange with " + LHS->getTypeName() + " and " + RHS->getTypeName(), tok);
        }
 
          // Determine column and row.
@@ -532,7 +434,7 @@ namespace Engine
          // Validate
       if ((col1 < 0) || (col2 < 0) || (row1 < 0) || (row2 < 0))
        {
-         constructMessage("Invalid cell reference");
+         constructMessage("Invalid cell reference", tok);
        }
 
       if (col1 > col2)
@@ -547,17 +449,10 @@ namespace Engine
       return std::make_shared<Types::CellRangeValue>(col1, row1, col2, row2);
     }
 
-   std::string MakeRange::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Equals (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 5) + ":" + rhs->toString(col, row, 5), level, 5);
-    }
-
-   OperationConstructor(Equals)
-
-   std::shared_ptr<Types::ValueType> Equals::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -579,7 +474,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
@@ -600,7 +495,7 @@ namespace Engine
          case Types::FLOAT:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -623,27 +518,20 @@ namespace Engine
             break;
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string Equals::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::NotEqual (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 1) + "=" + rhs->toString(col, row, 1), level, 1);
-    }
-
-   OperationConstructor(NotEqual)
-
-   std::shared_ptr<Types::ValueType> NotEqual::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -665,7 +553,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
@@ -686,7 +574,7 @@ namespace Engine
          case Types::FLOAT:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -709,27 +597,20 @@ namespace Engine
             break;
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string NotEqual::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Greater (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 1) + "<>" + rhs->toString(col, row, 1), level, 1);
-    }
-
-   OperationConstructor(Greater)
-
-   std::shared_ptr<Types::ValueType> Greater::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -751,7 +632,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
@@ -772,7 +653,7 @@ namespace Engine
          case Types::FLOAT:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -790,27 +671,20 @@ namespace Engine
             break;
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string Greater::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Less (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 1) + ">" + rhs->toString(col, row, 1), level, 1);
-    }
-
-   OperationConstructor(Less)
-
-   std::shared_ptr<Types::ValueType> Less::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -832,7 +706,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
@@ -850,7 +724,7 @@ namespace Engine
          case Types::FLOAT:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -873,27 +747,20 @@ namespace Engine
             break;
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string Less::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::GEQ (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 1) + "<" + rhs->toString(col, row, 1), level, 1);
-    }
-
-   OperationConstructor(GEQ)
-
-   std::shared_ptr<Types::ValueType> GEQ::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -915,7 +782,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
@@ -933,7 +800,7 @@ namespace Engine
          case Types::FLOAT:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -956,27 +823,20 @@ namespace Engine
             break;
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string GEQ::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::LEQ (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& lhs, const std::shared_ptr<Types::ValueType>& rhs)
     {
-      return wrapInParens(lhs->toString(col, row, 1) + ">=" + rhs->toString(col, row, 1), level, 1);
-    }
-
-   OperationConstructor(LEQ)
-
-   std::shared_ptr<Types::ValueType> LEQ::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> LHS = lhs->evaluate(context);
-      std::shared_ptr<Types::ValueType> RHS = rhs->evaluate(context);
+      std::shared_ptr<Types::ValueType> LHS = Constant(context, lhs);
+      std::shared_ptr<Types::ValueType> RHS = Constant(context, rhs);
       std::shared_ptr<Types::ValueType> result;
       switch (LHS->getType())
        {
@@ -998,7 +858,7 @@ namespace Engine
          case Types::STRING:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::STRING:
@@ -1019,7 +879,7 @@ namespace Engine
          case Types::FLOAT:
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::NIL:
@@ -1037,29 +897,19 @@ namespace Engine
             break;
          case Types::CELL_REF:
          case Types::CELL_RANGE:
-            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+            constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
           }
          break;
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName());
+         constructMessage("Error comparing " + LHS->getTypeName() + " with " + RHS->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string LEQ::toString(size_t col, size_t row, int level) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Negate (const Input::Token& tok, CallingContext& context, const std::shared_ptr<Types::ValueType>& arg)
     {
-      return wrapInParens(lhs->toString(col, row, 1) + "<=" + rhs->toString(col, row, 1), level, 1);
-    }
-
-
-   Negate::Negate(const Input::Token& token, const std::shared_ptr<Expression>& arg) : Expression(token), arg(arg)
-    {
-    }
-
-   std::shared_ptr<Types::ValueType> Negate::evaluate (CallingContext& context) const
-    {
-      std::shared_ptr<Types::ValueType> ARG = arg->evaluate(context);
+      std::shared_ptr<Types::ValueType> ARG = Constant(context, arg);
       std::shared_ptr<Types::ValueType> result;
       switch (ARG->getType())
        {
@@ -1072,26 +922,24 @@ namespace Engine
       case Types::STRING:
       case Types::CELL_REF:
       case Types::CELL_RANGE:
-         constructMessage("Error negating " + ARG->getTypeName());
+         constructMessage("Error negating " + ARG->getTypeName(), tok);
        }
       return result;
     }
 
-   std::string Negate::toString(size_t col, size_t row, int) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::FunctionCall (const Input::Token& token, CallingContext& context, const std::vector<std::shared_ptr<Types::ValueType> >& args)
     {
-      return "-" + arg->toString(col, row, 4);
-    }
+      const auto iter = context.map->find(token.text);
+      if (context.map->end() == iter)
+       {
+         std::stringstream str;
+         str << "Name >" << token.text << "< is not a function at " << token.location;
+         throw Backwards::Types::TypedOperationException(str.str());
+       }
+      std::shared_ptr<Backwards::Engine::Expression> location = std::make_shared<Backwards::Engine::Variable>(Backwards::Input::Token(), iter->second);
 
-
-   FunctionCall::FunctionCall(const Input::Token& token, const std::shared_ptr<Backwards::Engine::Expression>& location, const std::vector<std::shared_ptr<Expression> >& args) :
-      Expression(token), location(location), args(args)
-    {
-    }
-
-   std::shared_ptr<Types::ValueType> FunctionCall::evaluate (CallingContext& context) const
-    {
       std::shared_ptr<Backwards::Types::ArrayValue> newArg = std::make_shared<Backwards::Types::ArrayValue>();
-      for (std::shared_ptr<Expression> expr : args)
+      for (std::shared_ptr<Types::ValueType> expr : args)
        {
          newArg->value.emplace_back(
             std::make_shared<Backwards::Types::CellRefValue>(
@@ -1143,29 +991,7 @@ namespace Engine
       return result;
     }
 
-   std::string FunctionCall::toString(size_t col, size_t row, int) const
-    {
-      std::string result = "@" + token.text;
-      if (false == args.empty())
-       {
-         result += "(";
-         for (size_t i = 0U; i < args.size(); ++i)
-          {
-            if (0U != i)
-               result += ";";
-            result += args[i]->toString(col, row, 0);
-          }
-         result += ")";
-       }
-      return result;
-    }
-
-
-   Name::Name(const Input::Token& token) : Expression(token)
-    {
-    }
-
-   std::shared_ptr<Types::ValueType> Name::evaluate (CallingContext& context) const
+   std::shared_ptr<Types::ValueType> ShuntingYard::Name (const Input::Token& token, CallingContext& context)
     {
       const auto iter = context.names->find(token.text);
       if (context.names->end() == iter)
@@ -1174,13 +1000,8 @@ namespace Engine
        }
       else
        {
-         return iter->second->evaluate(context);
+         return iter->second;
        }
-    }
-
-   std::string Name::toString(size_t, size_t, int) const
-    {
-      return "_" + token.text;
     }
 
  } // namespace Forwards

@@ -32,13 +32,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "Forwards/Engine/StdLib.h"
 #include "Forwards/Engine/CellRefEval.h"
 
-#include "Backwards/Engine/Logger.h"
 #include "Backwards/Input/StringInput.h"
 
-#include "Forwards/Parser/Parser.h"
-#include "Forwards/Parser/StringLogger.h"
-
-#include "Forwards/Engine/Expression.h"
+#include "Forwards/Input/Lexer.h"
+#include "Forwards/Engine/ShuntingYard.h"
 #include "Forwards/Engine/CallingContext.h"
 
 #include "Backwards/Types/StringValue.h"
@@ -60,13 +57,7 @@ namespace Engine
           {
             Backwards::Input::StringInput string (static_cast<const Backwards::Types::StringValue&>(*arg).value);
             Input::Lexer lexer (string);
-
-            Backwards::Engine::Logger* temp = text.logger;
-            Parser::StringLogger newLogger;
-
-            text.logger = &newLogger;
-            std::shared_ptr<Expression> res = Parser::Parser::ParseFullExpression(lexer, *text.map, *text.logger, text.topCell()->col, text.topCell()->row);
-            text.logger = temp;
+            std::shared_ptr<Types::ValueType> res = ShuntingYard::evaluate(lexer, text);
 
             if (nullptr != res.get())
              {

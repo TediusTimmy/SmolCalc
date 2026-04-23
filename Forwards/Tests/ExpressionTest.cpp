@@ -31,7 +31,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include "gtest/gtest.h"
 
-#include "Forwards/Engine/Expression.h"
+#include "Forwards/Engine/ShuntingYard.h"
 #include "Forwards/Engine/CallingContext.h"
 #include "Forwards/Engine/SpreadSheet.h"
 #include "Forwards/Engine/Cell.h"
@@ -40,8 +40,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "Forwards/Engine/CellRangeExpand.h"
 #include "Forwards/Engine/CellRefEval.h"
 
-#include "Forwards/Parser/Parser.h"
 #include "Forwards/Parser/ContextBuilder.h"
+#include "Forwards/Input/Token.h"
 
 #include "Forwards/Types/FloatValue.h"
 #include "Forwards/Types/StringValue.h"
@@ -84,943 +84,606 @@ static std::shared_ptr<Forwards::Types::FloatValue> makeFloatValue (const char *
 TEST(EngineTests, testFloats)
  {
    NumberSystem::setCurrentNumberSystem(BCNUM_NUMBER_SYSTEM);
-   std::shared_ptr<Forwards::Engine::Constant> one = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("6"));
-   std::shared_ptr<Forwards::Engine::Constant> two = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("9"));
-   std::shared_ptr<Forwards::Engine::Constant> six = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("0"));
-   std::shared_ptr<Forwards::Engine::Constant> sev = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("-2"));
+   std::shared_ptr<Forwards::Types::ValueType> one = makeFloatValue("6");
+   std::shared_ptr<Forwards::Types::ValueType> two = makeFloatValue("9");
+   std::shared_ptr<Forwards::Types::ValueType> six = makeFloatValue("0");
+   std::shared_ptr<Forwards::Types::ValueType> sev = makeFloatValue("-2");
    std::shared_ptr<Forwards::Types::ValueType> res;
    Forwards::Engine::CallingContext context;
    StringLogger logger;
    context.logger = &logger;
 
-   Forwards::Engine::Plus plus (Forwards::Input::Token(), one, two);
-   res = plus.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("15"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6+9", plus.toString(1U, 1U, 0));
 
-   Forwards::Engine::Minus minus (Forwards::Input::Token(), one, two);
-   res = minus.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("-3"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6-9", minus.toString(1U, 1U, 0));
 
-   Forwards::Engine::Multiply multiply (Forwards::Input::Token(), one, two);
-   res = multiply.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("54"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6*9", multiply.toString(1U, 1U, 0));
 
    NumberSystem::getCurrentNumberSystem().setDefaultPrecision(1U);
-   Forwards::Engine::Divide divide (Forwards::Input::Token(), two, one); // Flipped args
-   res = divide.evaluate(context);
+   res = Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, two, one); // Flipped args
    NumberSystem::getCurrentNumberSystem().setDefaultPrecision(0U);
-
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1.5"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("9/6", divide.toString(1U, 1U, 0));
 
-   Forwards::Engine::Equals equalsT (Forwards::Input::Token(), one, one);
-   res = equalsT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6=6", equalsT.toString(1U, 1U, 0));
 
-   Forwards::Engine::Equals equalsF (Forwards::Input::Token(), one, two);
-   res = equalsF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6=9", equalsF.toString(1U, 1U, 0));
 
-   Forwards::Engine::NotEqual notEqualT (Forwards::Input::Token(), one, two);
-   res = notEqualT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6<>9", notEqualT.toString(1U, 1U, 0));
 
-   Forwards::Engine::NotEqual notEqualF (Forwards::Input::Token(), one, one);
-   res = notEqualF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6<>6", notEqualF.toString(1U, 1U, 0));
 
-   Forwards::Engine::Greater greaterT (Forwards::Input::Token(), two, one);
-   res = greaterT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("9>6", greaterT.toString(1U, 1U, 0));
 
-   Forwards::Engine::Greater greaterF (Forwards::Input::Token(), one, two);
-   res = greaterF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6>9", greaterF.toString(1U, 1U, 0));
 
-   Forwards::Engine::Less lessT (Forwards::Input::Token(), one, two);
-   res = lessT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6<9", lessT.toString(1U, 1U, 0));
 
-   Forwards::Engine::Less lessF (Forwards::Input::Token(), two, one);
-   res = lessF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("9<6", lessF.toString(1U, 1U, 0));
 
-   Forwards::Engine::GEQ geqT (Forwards::Input::Token(), two, one);
-   res = geqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("9>=6", geqT.toString(1U, 1U, 0));
 
-   Forwards::Engine::GEQ geqF (Forwards::Input::Token(), one, two);
-   res = geqF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6>=9", geqF.toString(1U, 1U, 0));
 
-   Forwards::Engine::LEQ leqT (Forwards::Input::Token(), one, two);
-   res = leqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("6<=9", leqT.toString(1U, 1U, 0));
 
-   Forwards::Engine::LEQ leqF (Forwards::Input::Token(), two, one);
-   res = leqF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("9<=6", leqF.toString(1U, 1U, 0));
 
-   Forwards::Engine::Negate neg (Forwards::Input::Token(), one);
-   res = neg.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Negate(Forwards::Input::Token(), context, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("-6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("-6", neg.toString(1U, 1U, 0));
 
-   Forwards::Engine::Cat cat (Forwards::Input::Token(), one, two);
-   res = cat.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get()));
    EXPECT_EQ("69", std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value); // Nice
-   EXPECT_EQ("6&9", cat.toString(1U, 1U, 0));
 
 
-   std::shared_ptr<Forwards::Engine::Constant> three = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::NilValue>());
+   std::shared_ptr<Forwards::Types::ValueType> three = std::make_shared<Forwards::Types::NilValue>();
 
-   Forwards::Engine::Plus plusNil (Forwards::Input::Token(), one, three);
-   res = plusNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Minus minusNil (Forwards::Input::Token(), one, three);
-   res = minusNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Multiply multiplyNil (Forwards::Input::Token(), one, three);
-   res = multiplyNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Divide divideNil (Forwards::Input::Token(), one, three);
-   res = divideNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_TRUE(std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value->isInf());
 
-   Forwards::Engine::Equals equalsTNil (Forwards::Input::Token(), six, three);
-   res = equalsTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, six, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Equals equalsFNil (Forwards::Input::Token(), one, three);
-   res = equalsFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual notEqualTNil (Forwards::Input::Token(), one, three);
-   res = notEqualTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual notEqualFNil (Forwards::Input::Token(), six, three);
-   res = notEqualFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, six, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater greaterTNil (Forwards::Input::Token(), two, three);
-   res = greaterTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, two, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater greaterFNil (Forwards::Input::Token(), six, three);
-   res = greaterFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, six, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less lessTNil (Forwards::Input::Token(), sev, three);
-   res = lessTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, sev, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less lessFNil (Forwards::Input::Token(), two, three);
-   res = lessFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, two, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ geqTNil (Forwards::Input::Token(), six, three);
-   res = geqTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, six, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ geqFNil (Forwards::Input::Token(), sev, three);
-   res = geqFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, sev, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ leqTNil (Forwards::Input::Token(), sev, three);
-   res = leqTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, sev, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ leqFNil (Forwards::Input::Token(), two, three);
-   res = leqFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, two, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Cat catNil (Forwards::Input::Token(), one, three);
-   res = catNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get()));
    EXPECT_EQ("6", std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value);
 
 
 
-   Forwards::Engine::Plus nilplus (Forwards::Input::Token(), three, one);
-   res = nilplus.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Minus nilminus (Forwards::Input::Token(), three, one);
-   res = nilminus.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("-6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Multiply nilmultiply (Forwards::Input::Token(), three, one);
-   res = nilmultiply.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Divide nildivide (Forwards::Input::Token(), three, one);
-   res = nildivide.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Equals nilequalsT (Forwards::Input::Token(), three, six);
-   res = nilequalsT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, three, six);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Equals nilequalsF (Forwards::Input::Token(), three, one);
-   res = nilequalsF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual nilnotEqualT (Forwards::Input::Token(), three, one);
-   res = nilnotEqualT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual nilnotEqualF (Forwards::Input::Token(), three, six);
-   res = nilnotEqualF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, three, six);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater nilgreaterT (Forwards::Input::Token(), three, sev);
-   res = nilgreaterT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, three, sev);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater nilgreaterF (Forwards::Input::Token(), three, six);
-   res = nilgreaterF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, three, six);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less nillessT (Forwards::Input::Token(), three, one);
-   res = nillessT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less nillessF (Forwards::Input::Token(), three, sev);
-   res = nillessF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, three, sev);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ nilgeqT (Forwards::Input::Token(), three, six);
-   res = nilgeqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, three, six);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ nilgeqF (Forwards::Input::Token(), three, one);
-   res = nilgeqF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ nilleqT (Forwards::Input::Token(), three, one);
-   res = nilleqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ nilleqF (Forwards::Input::Token(), three, sev);
-   res = nilleqF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, three, sev);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Cat nilcat (Forwards::Input::Token(), three, one);
-   res = nilcat.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get()));
    EXPECT_EQ("6", std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value);
 
 
       // fc?? Constant refuses to return a CellRefValue. If any these functions get a CellRefValue, that is probably a programming error.
-   std::shared_ptr<Forwards::Engine::Constant> fa = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::StringValue>("Hi"));
-   std::shared_ptr<Forwards::Engine::Constant> fc = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRangeValue>(1, 1, 1, 1));
+   std::shared_ptr<Forwards::Types::ValueType> fa = std::make_shared<Forwards::Types::StringValue>("Hi");
+   std::shared_ptr<Forwards::Types::ValueType> fc = std::make_shared<Forwards::Types::CellRangeValue>(1, 1, 1, 1);
 
-   Forwards::Engine::Plus plusFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::Plus plusFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Plus Faplus (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::Plus Fcplus (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(plusFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(plusFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Faplus.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcplus.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Minus minusFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::Minus minusFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Minus Faminus (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::Minus Fcminus (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(minusFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(minusFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Faminus.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcminus.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::Multiply mulitplyFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::Multiply mulitplyFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Multiply Famulitply (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::Multiply Fcmulitply (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(mulitplyFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(mulitplyFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Famulitply.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcmulitply.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::Divide divideFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::Divide divideFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Divide Fadivide (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::Divide Fcdivide (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(divideFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(divideFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fadivide.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcdivide.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
       // Cat with string is valid, to be handled by string. Why? Because this function is YUGE as it is.
-   Forwards::Engine::Cat catFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Cat Fccat (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(catFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fccat.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Equals equalsFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::Equals equalsFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Equals Faequals (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::Equals Fcequals (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(equalsFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(equalsFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Faequals.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcequals.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::NotEqual notequalFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::NotEqual notequalFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::NotEqual Fanotequal (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::NotEqual Fcnotequal (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(notequalFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(notequalFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fanotequal.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcnotequal.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Greater greaterFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::Greater greaterFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Greater Fagreater (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::Greater Fcgreater (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(greaterFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(greaterFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fagreater.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcgreater.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::Less lessFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::Less lessFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Less Faless (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::Less Fcless (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(lessFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(lessFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Faless.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcless.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::GEQ geqFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::GEQ geqFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::GEQ Fageq (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::GEQ Fcgeq (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(geqFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(geqFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fageq.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcgeq.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::LEQ leqFa (Forwards::Input::Token(), one, fa);
-   Forwards::Engine::LEQ leqFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::LEQ Faleq (Forwards::Input::Token(), fa, one);
-   Forwards::Engine::LEQ Fcleq (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(leqFa.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(leqFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Faleq.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcleq.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, one, fa), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, fa, one), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
  }
 
 TEST(EngineTests, testStrings)
  {
    NumberSystem::setCurrentNumberSystem(BCNUM_NUMBER_SYSTEM);
-   std::shared_ptr<Forwards::Engine::Constant> one = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::StringValue>("F"));
-   std::shared_ptr<Forwards::Engine::Constant> two = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::StringValue>("U"));
-   std::shared_ptr<Forwards::Engine::Constant> six = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::StringValue>(""));
-   std::shared_ptr<Forwards::Engine::Constant> sev = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::StringValue>("A"));
+   std::shared_ptr<Forwards::Types::ValueType> one = std::make_shared<Forwards::Types::StringValue>("F");
+   std::shared_ptr<Forwards::Types::ValueType> two = std::make_shared<Forwards::Types::StringValue>("U");
+   std::shared_ptr<Forwards::Types::ValueType> six = std::make_shared<Forwards::Types::StringValue>("");
+   std::shared_ptr<Forwards::Types::ValueType> sev = std::make_shared<Forwards::Types::StringValue>("A");
    std::shared_ptr<Forwards::Types::ValueType> res;
    Forwards::Engine::CallingContext context;
    StringLogger logger;
    context.logger = &logger;
 
-   Forwards::Engine::Equals equalsT (Forwards::Input::Token(), one, one);
-   res = equalsT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Equals equalsF (Forwards::Input::Token(), one, two);
-   res = equalsF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual notEqualT (Forwards::Input::Token(), one, two);
-   res = notEqualT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual notEqualF (Forwards::Input::Token(), one, one);
-   res = notEqualF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater greaterT (Forwards::Input::Token(), two, one);
-   res = greaterT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater greaterF (Forwards::Input::Token(), one, two);
-   res = greaterF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less lessT (Forwards::Input::Token(), one, two);
-   res = lessT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less lessF (Forwards::Input::Token(), two, one);
-   res = lessF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ geqT (Forwards::Input::Token(), two, one);
-   res = geqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ geqF (Forwards::Input::Token(), one, two);
-   res = geqF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ leqT (Forwards::Input::Token(), one, two);
-   res = leqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ leqF (Forwards::Input::Token(), two, one);
-   res = leqF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Cat cat (Forwards::Input::Token(), one, two);
-   res = cat.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get()));
    EXPECT_EQ("FU", std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value); // Nice
 
 
-   std::shared_ptr<Forwards::Engine::Constant> three = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::NilValue>());
+   std::shared_ptr<Forwards::Types::ValueType> three = std::make_shared<Forwards::Types::NilValue>();
 
-   Forwards::Engine::Equals equalsTNil (Forwards::Input::Token(), six, three);
-   res = equalsTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, six, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Equals equalsFNil (Forwards::Input::Token(), one, three);
-   res = equalsFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual notEqualTNil (Forwards::Input::Token(), one, three);
-   res = notEqualTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual notEqualFNil (Forwards::Input::Token(), six, three);
-   res = notEqualFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, six, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater greaterTNil (Forwards::Input::Token(), two, three);
-   res = greaterTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, two, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater greaterFNil (Forwards::Input::Token(), six, three);
-   res = greaterFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, six, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-//   Forwards::Engine::Less lessTNil (Forwards::Input::Token(), sev, three);
-//   res = lessTNil.evaluate(context);
-
+//   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, sev, three);
 //   ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
 //   EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less lessFNil (Forwards::Input::Token(), two, three);
-   res = lessFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, two, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ geqTNil (Forwards::Input::Token(), six, three);
-   res = geqTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, six, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-//   Forwards::Engine::GEQ geqFNil (Forwards::Input::Token(), sev, three);
-//   res = geqFNil.evaluate(context);
-
+//   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, sev, three);
 //   ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
 //   EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ leqTNil (Forwards::Input::Token(), six, three);
-   res = leqTNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, six, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ leqFNil (Forwards::Input::Token(), two, three);
-   res = leqFNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, two, three);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Cat catNil (Forwards::Input::Token(), one, three);
-   res = catNil.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, one, three);
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get()));
    EXPECT_EQ("F", std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value);
 
 
 
-   Forwards::Engine::Equals nilequalsT (Forwards::Input::Token(), three, six);
-   res = nilequalsT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, three, six);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Equals nilequalsF (Forwards::Input::Token(), three, one);
-   res = nilequalsF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual nilnotEqualT (Forwards::Input::Token(), three, one);
-   res = nilnotEqualT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual nilnotEqualF (Forwards::Input::Token(), three, six);
-   res = nilnotEqualF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, three, six);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-//   Forwards::Engine::Greater nilgreaterT (Forwards::Input::Token(), three, sev);
-//   res = nilgreaterT.evaluate(context);
-
+//   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, three, sev);
 //   ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
 //   EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater nilgreaterF (Forwards::Input::Token(), three, six);
-   res = nilgreaterF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, three, six);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less nillessT (Forwards::Input::Token(), three, one);
-   res = nillessT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less nillessF (Forwards::Input::Token(), three, six);
-   res = nillessF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, three, six);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ nilgeqT (Forwards::Input::Token(), three, six);
-   res = nilgeqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, three, six);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ nilgeqF (Forwards::Input::Token(), three, one);
-   res = nilgeqF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ nilleqT (Forwards::Input::Token(), three, one);
-   res = nilleqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-//   Forwards::Engine::LEQ nilleqF (Forwards::Input::Token(), three, sev);
-//   res = nilleqF.evaluate(context);
-
+//   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, three, sev);
 //   ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
 //   EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Cat nilcat (Forwards::Input::Token(), three, one);
-   res = nilcat.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, three, one);
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get()));
    EXPECT_EQ("F", std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value);
 
 
-   std::shared_ptr<Forwards::Engine::Constant> floatCat = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("6"));
+   std::shared_ptr<Forwards::Types::ValueType> floatCat = makeFloatValue("6");
 
-   Forwards::Engine::Cat catfs (Forwards::Input::Token(), one, floatCat);
-   res = catfs.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, one, floatCat);
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get()));
    EXPECT_EQ("F6", std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value);
 
-   Forwards::Engine::Cat catsf (Forwards::Input::Token(), floatCat, one);
-   res = catsf.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, floatCat, one);
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get()));
    EXPECT_EQ("6F", std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value);
 
 
 
-   std::shared_ptr<Forwards::Engine::Constant> fc = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRangeValue>(1, 1, 1, 1));
+   std::shared_ptr<Forwards::Types::ValueType> fc = std::make_shared<Forwards::Types::CellRangeValue>(1, 1, 1, 1);
 
       // Cat with string is valid, to be handled by string. Why? Because this function is YUGE as it is.
-   Forwards::Engine::Cat catFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Cat Fccat (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(catFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fccat.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Equals equalsFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Equals Fcequals (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(equalsFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcequals.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::NotEqual notequalFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::NotEqual Fcnotequal (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(notequalFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcnotequal.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Greater greaterFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Greater Fcgreater (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(greaterFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcgreater.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::Less lessFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Less Fcless (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(lessFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcless.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::GEQ geqFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::GEQ Fcgeq (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(geqFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcgeq.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::LEQ leqFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::LEQ Fcleq (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(leqFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcleq.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::Negate negone (Forwards::Input::Token(), one);
-   EXPECT_THROW(negone.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Negate(Forwards::Input::Token(), context, one), Backwards::Types::TypedOperationException);
  }
 
 TEST(EngineTests, testOtherNils)
  {
    NumberSystem::setCurrentNumberSystem(BCNUM_NUMBER_SYSTEM);
-   std::shared_ptr<Forwards::Engine::Constant> one = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::NilValue>());
-   std::shared_ptr<Forwards::Engine::Constant> two = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::NilValue>());
+   std::shared_ptr<Forwards::Types::ValueType> one = std::make_shared<Forwards::Types::NilValue>();
+   std::shared_ptr<Forwards::Types::ValueType> two = std::make_shared<Forwards::Types::NilValue>();
    std::shared_ptr<Forwards::Types::ValueType> res;
    Forwards::Engine::CallingContext context;
    StringLogger logger;
    context.logger = &logger;
 
-   Forwards::Engine::Plus plus (Forwards::Input::Token(), one, two);
-   res = plus.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
-   Forwards::Engine::Minus minus (Forwards::Input::Token(), one, two);
-   res = minus.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
-   Forwards::Engine::Multiply multiply (Forwards::Input::Token(), one, two);
-   res = multiply.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
-   Forwards::Engine::Divide divide (Forwards::Input::Token(), one, two);
-   res = divide.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
-   Forwards::Engine::Equals equalsT (Forwards::Input::Token(), one, one);
-   res = equalsT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::NotEqual notEqualF (Forwards::Input::Token(), one, one);
-   res = notEqualF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Greater greaterF (Forwards::Input::Token(), one, two);
-   res = greaterF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Less lessF (Forwards::Input::Token(), two, one);
-   res = lessF.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("0"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::GEQ geqT (Forwards::Input::Token(), two, one);
-   res = geqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, two, one);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::LEQ leqT (Forwards::Input::Token(), one, two);
-   res = leqT.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   Forwards::Engine::Negate neg (Forwards::Input::Token(), one);
-   res = neg.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Negate(Forwards::Input::Token(), context, one);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
-   Forwards::Engine::Cat cat (Forwards::Input::Token(), one, two);
-   res = cat.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, one, two);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
 
-   std::shared_ptr<Forwards::Engine::Constant> fc = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRangeValue>(1, 1, 1, 1));
+   std::shared_ptr<Forwards::Types::ValueType> fc = std::make_shared<Forwards::Types::CellRangeValue>(1, 1, 1, 1);
 
-   Forwards::Engine::Plus plusFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Plus Fcplus (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Plus(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(plusFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcplus.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Minus(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Minus minusFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Minus Fcminus (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Multiply(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(minusFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcminus.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Divide(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Multiply mulitplyFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Multiply Fcmulitply (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Cat(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(mulitplyFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcmulitply.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Equals(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Divide divideFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Divide Fcdivide (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::NotEqual(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(divideFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcdivide.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Greater(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Cat catFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Cat Fccat (Forwards::Input::Token(), fc, one);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Less(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
+   
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::GEQ(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   EXPECT_THROW(catFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fccat.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, one, fc), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::LEQ(Forwards::Input::Token(), context, fc, one), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::Equals equalsFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Equals Fcequals (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(equalsFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcequals.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::NotEqual notequalFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::NotEqual Fcnotequal (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(notequalFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcnotequal.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::Greater greaterFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Greater Fcgreater (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(greaterFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcgreater.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::Less lessFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::Less Fcless (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(lessFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcless.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::GEQ geqFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::GEQ Fcgeq (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(geqFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcgeq.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::LEQ leqFc (Forwards::Input::Token(), one, fc);
-   Forwards::Engine::LEQ Fcleq (Forwards::Input::Token(), fc, one);
-
-   EXPECT_THROW(leqFc.evaluate(context), Backwards::Types::TypedOperationException);
-   EXPECT_THROW(Fcleq.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::Negate negfc (Forwards::Input::Token(), fc);
-   EXPECT_THROW(negfc.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::Negate(Forwards::Input::Token(), context, fc), Backwards::Types::TypedOperationException);
  }
 
 TEST(EngineTests, testVariousCellRanges)
  {
    NumberSystem::setCurrentNumberSystem(BCNUM_NUMBER_SYSTEM);
-   std::shared_ptr<Forwards::Engine::Constant> A1 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 0));
-   std::shared_ptr<Forwards::Engine::Constant> A2 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 0, true, 0));
-   std::shared_ptr<Forwards::Engine::Constant> A3 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 0, false, 0));
-   std::shared_ptr<Forwards::Engine::Constant> A4 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 0, true, 0));
+   std::shared_ptr<Forwards::Types::ValueType> A1 = std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 0);
+   std::shared_ptr<Forwards::Types::ValueType> A2 = std::make_shared<Forwards::Types::CellRefValue>(false, 0, true, 0);
+   std::shared_ptr<Forwards::Types::ValueType> A3 = std::make_shared<Forwards::Types::CellRefValue>(true, 0, false, 0);
+   std::shared_ptr<Forwards::Types::ValueType> A4 = std::make_shared<Forwards::Types::CellRefValue>(true, 0, true, 0);
 
-   std::shared_ptr<Forwards::Engine::Constant> B1 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 1, false, 1));
-   std::shared_ptr<Forwards::Engine::Constant> B2 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 1, true, 1));
-   std::shared_ptr<Forwards::Engine::Constant> B3 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 1, false, 1));
-   std::shared_ptr<Forwards::Engine::Constant> B4 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 1, true, 1));
+   std::shared_ptr<Forwards::Types::ValueType> B1 = std::make_shared<Forwards::Types::CellRefValue>(false, 1, false, 1);
+   std::shared_ptr<Forwards::Types::ValueType> B2 = std::make_shared<Forwards::Types::CellRefValue>(false, 1, true, 1);
+   std::shared_ptr<Forwards::Types::ValueType> B3 = std::make_shared<Forwards::Types::CellRefValue>(true, 1, false, 1);
+   std::shared_ptr<Forwards::Types::ValueType> B4 = std::make_shared<Forwards::Types::CellRefValue>(true, 1, true, 1);
 
    std::shared_ptr<Forwards::Types::ValueType> res;
    Forwards::Engine::CallingContext context;
@@ -1030,111 +693,51 @@ TEST(EngineTests, testVariousCellRanges)
    Forwards::Engine::CellFrame frame (nullptr, 0U, 0U);
    context.pushCell(&frame);
 
-   Forwards::Engine::MakeRange range1 (Forwards::Input::Token(), A1, B1);
-   res = range1.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, A1, B1);
    ASSERT_TRUE(typeid(Forwards::Types::CellRangeValue) == typeid(*res.get()));
    EXPECT_EQ(0U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->col1);
    EXPECT_EQ(0U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->row1);
    EXPECT_EQ(1U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->col2);
    EXPECT_EQ(1U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->row2);
-   EXPECT_EQ("A0:B1", range1.toString(0U, 0U, 0));
 
-   Forwards::Engine::MakeRange range2 (Forwards::Input::Token(), A2, B1);
-   res = range2.evaluate(context);
-
+      // Yes, because we no longer have toString, we don't test the output
+   res = Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, A2, B1);
    ASSERT_TRUE(typeid(Forwards::Types::CellRangeValue) == typeid(*res.get()));
-   EXPECT_EQ("A$0:B1", range2.toString(0U, 0U, 0));
 
-   Forwards::Engine::MakeRange range3 (Forwards::Input::Token(), A3, B1);
-   res = range3.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, A3, B1);
    ASSERT_TRUE(typeid(Forwards::Types::CellRangeValue) == typeid(*res.get()));
-   EXPECT_EQ("$A0:B1", range3.toString(0U, 0U, 0));
 
-   Forwards::Engine::MakeRange range4 (Forwards::Input::Token(), A4, B1);
-   res = range4.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, A4, B1);
    ASSERT_TRUE(typeid(Forwards::Types::CellRangeValue) == typeid(*res.get()));
-   EXPECT_EQ("$A$0:B1", range4.toString(0U, 0U, 0));
 
-   Forwards::Engine::MakeRange range5 (Forwards::Input::Token(), A1, B2);
-   res = range5.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, A1, B2);
    ASSERT_TRUE(typeid(Forwards::Types::CellRangeValue) == typeid(*res.get()));
-   EXPECT_EQ("A0:B$1", range5.toString(0U, 0U, 0));
 
-   Forwards::Engine::MakeRange range6 (Forwards::Input::Token(), A1, B3);
-   res = range6.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, A1, B3);
    ASSERT_TRUE(typeid(Forwards::Types::CellRangeValue) == typeid(*res.get()));
-   EXPECT_EQ("A0:$B1", range6.toString(0U, 0U, 0));
 
-   Forwards::Engine::MakeRange range7 (Forwards::Input::Token(), A1, B4);
-   res = range7.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, A1, B4);
    ASSERT_TRUE(typeid(Forwards::Types::CellRangeValue) == typeid(*res.get()));
-   EXPECT_EQ("A0:$B$1", range7.toString(0U, 0U, 0));
 
-   Forwards::Engine::MakeRange range8 (Forwards::Input::Token(), B1, A1);
-   res = range8.evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, B1, A1);
    ASSERT_TRUE(typeid(Forwards::Types::CellRangeValue) == typeid(*res.get()));
    EXPECT_EQ(0U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->col1);
    EXPECT_EQ(0U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->row1);
    EXPECT_EQ(1U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->col2);
    EXPECT_EQ(1U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->row2);
-   EXPECT_EQ("B1:A0", range8.toString(0U, 0U, 0));
 
-   std::shared_ptr<Forwards::Engine::Constant> F1 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, -1, true, 1));
-   std::shared_ptr<Forwards::Engine::Constant> F2 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 1, false, -1));
+   std::shared_ptr<Forwards::Types::ValueType> F1 = std::make_shared<Forwards::Types::CellRefValue>(false, -1, true, 1);
+   std::shared_ptr<Forwards::Types::ValueType> F2 = std::make_shared<Forwards::Types::CellRefValue>(true, 1, false, -1);
 
-   Forwards::Engine::MakeRange rangeF1 (Forwards::Input::Token(), F1, B1);
-   EXPECT_THROW(rangeF1.evaluate(context), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, F1, B1), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, F2, B1), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, B1, F1), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, B1, F2), Backwards::Types::TypedOperationException);
 
-   Forwards::Engine::MakeRange rangeF2 (Forwards::Input::Token(), F2, B1);
-   EXPECT_THROW(rangeF2.evaluate(context), Backwards::Types::TypedOperationException);
+   std::shared_ptr<Forwards::Types::ValueType> one = makeFloatValue("6");
 
-   Forwards::Engine::MakeRange rangeF3 (Forwards::Input::Token(), B1, F1);
-   EXPECT_THROW(rangeF3.evaluate(context), Backwards::Types::TypedOperationException);
-
-   Forwards::Engine::MakeRange rangeF4 (Forwards::Input::Token(), B1, F2);
-   EXPECT_THROW(rangeF4.evaluate(context), Backwards::Types::TypedOperationException);
-
-   std::shared_ptr<Forwards::Engine::Constant> one = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("6"));
-
-   Forwards::Engine::MakeRange rangeF5 (Forwards::Input::Token(), one, B1);
-   EXPECT_THROW(rangeF5.evaluate(context), Backwards::Engine::ProgrammingException);
-
-   Forwards::Engine::MakeRange rangeF6 (Forwards::Input::Token(), B1, one);
-   EXPECT_THROW(rangeF6.evaluate(context), Backwards::Engine::ProgrammingException);
-
-   std::shared_ptr<Forwards::Engine::Plus> plus = std::make_shared<Forwards::Engine::Plus>(Forwards::Input::Token(), one, B1);
-
-   Forwards::Engine::MakeRange rangeF7 (Forwards::Input::Token(), plus, B1);
-   EXPECT_THROW(rangeF7.evaluate(context), Backwards::Engine::ProgrammingException);
-
-   Forwards::Engine::MakeRange rangeF8 (Forwards::Input::Token(), B1, plus);
-   EXPECT_THROW(rangeF8.evaluate(context), Backwards::Engine::ProgrammingException);
- }
-
-TEST(EngineTests, testParens)
- {
-   NumberSystem::setCurrentNumberSystem(BCNUM_NUMBER_SYSTEM);
-   std::shared_ptr<Forwards::Engine::Constant> one = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("6"));
-   std::shared_ptr<Forwards::Engine::Constant> two = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("9"));
-
-   std::shared_ptr<Forwards::Engine::Plus> plus = std::make_shared<Forwards::Engine::Plus>(Forwards::Input::Token(), one, two);
-   std::shared_ptr<Forwards::Engine::Multiply> mult = std::make_shared<Forwards::Engine::Multiply>(Forwards::Input::Token(), one, two);
-
-   Forwards::Engine::Multiply multiply (Forwards::Input::Token(), one, plus);
-   EXPECT_EQ("6*(6+9)", multiply.toString(1U, 1U, 0));
-
-   Forwards::Engine::Minus minus (Forwards::Input::Token(), one, plus);
-   EXPECT_EQ("6-(6+9)", minus.toString(1U, 1U, 0));
-
-   Forwards::Engine::Minus minus2 (Forwards::Input::Token(), one, mult);
-   EXPECT_EQ("6-6*9", minus2.toString(1U, 1U, 0));
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, one, B1), Backwards::Types::TypedOperationException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::MakeRange(Forwards::Input::Token(), context, B1, one), Backwards::Types::TypedOperationException);
  }
 
 TEST(EngineTests, testFinalConst)
@@ -1148,8 +751,6 @@ TEST(EngineTests, testFinalConst)
    Forwards::Engine::SpreadSheet shet;
    context.theSheet = &shet;
 
-   context.inUserInput = true;
-
    shet.sheet.resize(3U);
    shet.sheet[0].resize(3);
    shet.sheet[1].resize(3);
@@ -1157,96 +758,73 @@ TEST(EngineTests, testFinalConst)
 
    shet.sheet[0][0] = std::make_unique<Forwards::Engine::Cell>();
    shet.sheet[1][1] = std::make_unique<Forwards::Engine::Cell>();
-   shet.sheet[1][1]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("6"));
+   shet.sheet[1][1]->previousValue = makeFloatValue("6");
 
    Forwards::Engine::CellFrame frame (shet.sheet[0][0].get(), 0U, 0U);
    context.pushCell(&frame);
 
-   std::shared_ptr<Forwards::Engine::Constant> A1 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 1, false, 1));
-   std::shared_ptr<Forwards::Engine::Constant> A2 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 1, true, 1));
-   std::shared_ptr<Forwards::Engine::Constant> A3 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 1, false, 1));
-   std::shared_ptr<Forwards::Engine::Constant> A4 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 1, true, 1));
+   std::shared_ptr<Forwards::Types::ValueType> A1 = std::make_shared<Forwards::Types::CellRefValue>(false, 1, false, 1);
+   std::shared_ptr<Forwards::Types::ValueType> A2 = std::make_shared<Forwards::Types::CellRefValue>(false, 1, true, 1);
+   std::shared_ptr<Forwards::Types::ValueType> A3 = std::make_shared<Forwards::Types::CellRefValue>(true, 1, false, 1);
+   std::shared_ptr<Forwards::Types::ValueType> A4 = std::make_shared<Forwards::Types::CellRefValue>(true, 1, true, 1);
 
-   res = A1->evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Constant(context, A1);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   res = A2->evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Constant(context, A2);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   res = A3->evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Constant(context, A3);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   res = A4->evaluate(context);
-
+   res = Forwards::Engine::ShuntingYard::Constant(context, A4);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   std::shared_ptr<Forwards::Engine::Constant> F1 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, -1, false, 0));
-   EXPECT_NO_THROW(F1->evaluate(context));
+   std::shared_ptr<Forwards::Types::ValueType> F1 = std::make_shared<Forwards::Types::CellRefValue>(false, -1, false, 0);
+   EXPECT_NO_THROW(Forwards::Engine::ShuntingYard::Constant(context, F1));
 
-   std::shared_ptr<Forwards::Engine::Constant> F2 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, -1));
-   EXPECT_NO_THROW(F2->evaluate(context));
+   std::shared_ptr<Forwards::Types::ValueType> F2 = std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, -1);
+   EXPECT_NO_THROW(Forwards::Engine::ShuntingYard::Constant(context, F2));
 
-   std::shared_ptr<Forwards::Engine::Constant> B1 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 4, false, 1));
-   std::shared_ptr<Forwards::Engine::Constant> B2 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 1, false, 4));
-   std::shared_ptr<Forwards::Engine::Constant> B3 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 2, false, 2));
-   std::shared_ptr<Forwards::Engine::Constant> B4 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 0));
+   std::shared_ptr<Forwards::Types::ValueType> B1 = std::make_shared<Forwards::Types::CellRefValue>(false, 4, false, 1);
+   std::shared_ptr<Forwards::Types::ValueType> B2 = std::make_shared<Forwards::Types::CellRefValue>(false, 1, false, 4);
+   std::shared_ptr<Forwards::Types::ValueType> B3 = std::make_shared<Forwards::Types::CellRefValue>(false, 2, false, 2);
+   std::shared_ptr<Forwards::Types::ValueType> B4 = std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 0);
 
-   res = B1->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::Constant(context, B1);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
-   res = B2->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::Constant(context, B2);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
-   res = B3->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::Constant(context, B3);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
-   res = B4->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::Constant(context, B4);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
    shet.sheet[1][1]->previousValue.reset();
-   shet.sheet[1][1]->inEvaluation = true;
-   res = A1->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::Constant(context, A1);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
    shet.sheet[1][1]->previousValue = makeFloatValue("9");
-   res = A1->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::Constant(context, A1);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("9"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-
-   shet.sheet[1][1]->inEvaluation = false;
-   shet.sheet[1][1]->previousGeneration = context.generation;
-   res = A1->evaluate(context);
-   ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
-   EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("9"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-
-   context.inUserInput = false;
-   ++context.generation;
-   res = A1->evaluate(context);
-   ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
-   EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
       // Ensure that a cell that references a cell doesn't return a cell reference.
+      // previousValue should NEVER be a cell reference, but let's make sure we get a cell reference
    shet.sheet[0][2] = std::make_unique<Forwards::Engine::Cell>();
-   shet.sheet[0][2]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 1, true, 1));
-   std::shared_ptr<Forwards::Engine::Constant> A9 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 0, true, 2));
-   res = A9->evaluate(context);
-   ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
-   EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-
-   std::shared_ptr<Forwards::Engine::Constant> one = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("6"));
-   std::shared_ptr<Forwards::Engine::Constant> two = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::StringValue>("U"));
-   std::shared_ptr<Forwards::Engine::Plus> plus = std::make_shared<Forwards::Engine::Plus>(Forwards::Input::Token(), one, two);
-   shet.sheet[1][2] = std::make_unique<Forwards::Engine::Cell>();
-   shet.sheet[1][2]->value = plus;
-   std::shared_ptr<Forwards::Engine::Constant> F9 = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 1, true, 2));
-   EXPECT_THROW(F9->evaluate(context), Backwards::Types::TypedOperationException);
+   shet.sheet[0][2]->previousValue = std::make_shared<Forwards::Types::CellRefValue>(true, 1, true, 1);
+   std::shared_ptr<Forwards::Types::ValueType> A9 = std::make_shared<Forwards::Types::CellRefValue>(true, 0, true, 2);
+   res = Forwards::Engine::ShuntingYard::Constant(context, A9);
+   ASSERT_FALSE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
+   ASSERT_TRUE(typeid(Forwards::Types::CellRefValue) == typeid(*res.get()));
+   //EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("9"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
  }
 
 TEST(EngineTests, testFunctionsAndRanges)
@@ -1274,15 +852,15 @@ TEST(EngineTests, testFunctionsAndRanges)
    shet.sheet[2][0] = std::make_unique<Forwards::Engine::Cell>();
    shet.sheet[2][1] = std::make_unique<Forwards::Engine::Cell>();
    shet.sheet[2][2] = std::make_unique<Forwards::Engine::Cell>();
-   shet.sheet[0][0]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("1"));
-   shet.sheet[0][1]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("2"));
-   shet.sheet[0][2]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("3"));
-   shet.sheet[1][0]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("4"));
-   shet.sheet[1][1]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("5"));
-   shet.sheet[1][2]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("6"));
-   shet.sheet[2][0]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("7"));
-   shet.sheet[2][1]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("8"));
-   shet.sheet[2][2]->value = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("9"));
+   shet.sheet[0][0]->previousValue = makeFloatValue("1");
+   shet.sheet[0][1]->previousValue = makeFloatValue("2");
+   shet.sheet[0][2]->previousValue = makeFloatValue("3");
+   shet.sheet[1][0]->previousValue = makeFloatValue("4");
+   shet.sheet[1][1]->previousValue = makeFloatValue("5");
+   shet.sheet[1][2]->previousValue = makeFloatValue("6");
+   shet.sheet[2][0]->previousValue = makeFloatValue("7");
+   shet.sheet[2][1]->previousValue = makeFloatValue("8");
+   shet.sheet[2][2]->previousValue = makeFloatValue("9");
 
    Forwards::Engine::CellFrame frame (shet.sheet[0][0].get(), 0U, 0U);
    EXPECT_EQ(nullptr, context.topCell());
@@ -1290,7 +868,7 @@ TEST(EngineTests, testFunctionsAndRanges)
 
 
    Forwards::Engine::GetterMap map;
-   //context.map = &map;
+   context.map = &map; // This is now required.
 
    Backwards::Engine::Scope global;
    context.globalScope = &global;
@@ -1323,74 +901,44 @@ TEST(EngineTests, testFunctionsAndRanges)
    ASSERT_TRUE(map.end() != map.find("ARG"));
    ASSERT_TRUE(map.end() != map.find("BARG"));
 
-   std::vector<std::shared_ptr<Forwards::Engine::Expression> > args;
-   args.emplace_back(std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRangeValue>(0, 0, 1, 1)));
-   std::shared_ptr<Forwards::Engine::FunctionCall> fun1 = std::make_shared<Forwards::Engine::FunctionCall>(
-      Forwards::Input::Token(Forwards::Input::IDENTIFIER, "SUM", 1U),
-      std::make_shared<Backwards::Engine::Variable>(Backwards::Input::Token(), map["SUM"]),
-      args);
+   std::vector<std::shared_ptr<Forwards::Types::ValueType> > args;
+   args.emplace_back(std::make_shared<Forwards::Types::CellRangeValue>(0, 0, 1, 1));
 
-   EXPECT_EQ("@SUM(A0:B1)", fun1->toString(0U, 0U, 5));
-
-   res = fun1->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::FunctionCall(Forwards::Input::Token(Forwards::Input::IDENTIFIER, "SUM", 1U), context, args);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("12"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
-   args.emplace_back(std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRangeValue>(0, 0, 1, 0)));
-   std::shared_ptr<Forwards::Engine::FunctionCall> fun2 = std::make_shared<Forwards::Engine::FunctionCall>(
-      Forwards::Input::Token(Forwards::Input::IDENTIFIER, "SUM", 1U),
-      std::make_shared<Backwards::Engine::Variable>(Backwards::Input::Token(), map["SUM"]),
-      args);
+   args.emplace_back(std::make_shared<Forwards::Types::CellRangeValue>(0, 0, 1, 0));
 
-   EXPECT_EQ("@SUM(A0:B1;A0:B0)", fun2->toString(0U, 0U, 5));
-
-   res = fun2->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::FunctionCall(Forwards::Input::Token(Forwards::Input::IDENTIFIER, "SUM", 1U), context, args);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("17"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
    args.clear();
-   args.emplace_back(std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRangeValue>(0, 0, 0, 0)));
-   std::shared_ptr<Forwards::Engine::FunctionCall> fun3 = std::make_shared<Forwards::Engine::FunctionCall>(
-      Forwards::Input::Token(Forwards::Input::IDENTIFIER, "SUM", 1U),
-      std::make_shared<Backwards::Engine::Variable>(Backwards::Input::Token(), map["SUM"]),
-      args);
+   args.emplace_back(std::make_shared<Forwards::Types::CellRangeValue>(0, 0, 0, 0));
 
-   EXPECT_EQ("@SUM(A0:A0)", fun3->toString(0U, 0U, 5));
-
-   res = fun3->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::FunctionCall(Forwards::Input::Token(Forwards::Input::IDENTIFIER, "SUM", 1U), context, args);
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("1"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
 
 
    args.clear();
-   args.emplace_back(std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::StringValue>("Hi")));
-   std::shared_ptr<Forwards::Engine::FunctionCall> funA1 = std::make_shared<Forwards::Engine::FunctionCall>(
-      Forwards::Input::Token(Forwards::Input::IDENTIFIER, "ARG", 1U),
-      std::make_shared<Backwards::Engine::Variable>(Backwards::Input::Token(), map["ARG"]),
-      args);
+   args.emplace_back(std::make_shared<Forwards::Types::StringValue>("Hi"));
 
-   res = funA1->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::FunctionCall(Forwards::Input::Token(Forwards::Input::IDENTIFIER, "ARG", 1U), context, args);
    ASSERT_TRUE(typeid(Forwards::Types::StringValue) == typeid(*res.get()));
    EXPECT_EQ("Hi", std::dynamic_pointer_cast<Forwards::Types::StringValue>(res)->value);
 
    args.clear();
-   args.emplace_back(std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::NilValue>()));
-   std::shared_ptr<Forwards::Engine::FunctionCall> funA2 = std::make_shared<Forwards::Engine::FunctionCall>(
-      Forwards::Input::Token(Forwards::Input::IDENTIFIER, "ARG", 1U),
-      std::make_shared<Backwards::Engine::Variable>(Backwards::Input::Token(), map["ARG"]),
-      args);
+   args.emplace_back(std::make_shared<Forwards::Types::NilValue>());
 
-   res = funA2->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::FunctionCall(Forwards::Input::Token(Forwards::Input::IDENTIFIER, "ARG", 1U), context, args);
    ASSERT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
 
    args.clear();
-   args.emplace_back(std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRangeValue>(0, 1, 1, 2)));
-   std::shared_ptr<Forwards::Engine::FunctionCall> funA3 = std::make_shared<Forwards::Engine::FunctionCall>(
-      Forwards::Input::Token(Forwards::Input::IDENTIFIER, "ARG", 1U),
-      std::make_shared<Backwards::Engine::Variable>(Backwards::Input::Token(), map["ARG"]),
-      args);
+   args.emplace_back(std::make_shared<Forwards::Types::CellRangeValue>(0, 1, 1, 2));
 
-   res = funA3->evaluate(context);
+   res = Forwards::Engine::ShuntingYard::FunctionCall(Forwards::Input::Token(Forwards::Input::IDENTIFIER, "ARG", 1U), context, args);
    ASSERT_TRUE(typeid(Forwards::Types::CellRangeValue) == typeid(*res.get()));
    EXPECT_EQ(0U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->col1);
    EXPECT_EQ(1U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->row1);
@@ -1398,13 +946,9 @@ TEST(EngineTests, testFunctionsAndRanges)
    EXPECT_EQ(2U, std::dynamic_pointer_cast<Forwards::Types::CellRangeValue>(res)->row2);
 
    args.clear();
-   args.emplace_back(std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::NilValue>()));
-   std::shared_ptr<Forwards::Engine::FunctionCall> funB1 = std::make_shared<Forwards::Engine::FunctionCall>(
-      Forwards::Input::Token(Forwards::Input::IDENTIFIER, "BARG", 1U),
-      std::make_shared<Backwards::Engine::Variable>(Backwards::Input::Token(), map["BARG"]),
-      args);
+   args.emplace_back(std::make_shared<Forwards::Types::NilValue>());
 
-   EXPECT_THROW(funB1->evaluate(context), Backwards::Engine::ProgrammingException);
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::FunctionCall(Forwards::Input::Token(Forwards::Input::IDENTIFIER, "BARG", 1U), context, args), Backwards::Engine::ProgrammingException);
 
    std::shared_ptr<Backwards::Engine::CallingContext> copied = context.duplicate();
    std::shared_ptr<Forwards::Engine::CallingContext> casted = std::dynamic_pointer_cast<Forwards::Engine::CallingContext>(copied);
@@ -1413,16 +957,7 @@ TEST(EngineTests, testFunctionsAndRanges)
    EXPECT_EQ(context.theSheet, casted->theSheet);
    EXPECT_EQ(context.logger, casted->logger);
 
-
-   std::shared_ptr<Forwards::Engine::Constant> one = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("6"));
-   std::shared_ptr<Forwards::Engine::Constant> two = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("9"));
-   args.clear();
-   args.emplace_back(std::make_shared<Forwards::Engine::Plus>(Forwards::Input::Token(), one, two));
-   std::shared_ptr<Forwards::Engine::FunctionCall> funTestParens = std::make_shared<Forwards::Engine::FunctionCall>(
-      Forwards::Input::Token(Forwards::Input::IDENTIFIER, "ARG", 1U),
-      std::make_shared<Backwards::Engine::Variable>(Backwards::Input::Token(), map["ARG"]),
-      args);
-   EXPECT_EQ("@ARG(6+9)", funTestParens->toString(0U, 0U, 5));
+   EXPECT_THROW(Forwards::Engine::ShuntingYard::FunctionCall(Forwards::Input::Token(Forwards::Input::IDENTIFIER, "LARRY", 1U), context, args), Backwards::Types::TypedOperationException);
  }
 
 TEST(EngineTests, testCellRangeExpand)
@@ -1464,9 +999,8 @@ TEST(EngineTests, testCellRangeExpand)
    ASSERT_TRUE(typeid(Backwards::Types::CellRefValue) == typeid(*res.get()));
    ASSERT_TRUE(typeid(Forwards::Engine::CellRefEval) == typeid(*std::dynamic_pointer_cast<Backwards::Types::CellRefValue>(res)->value.get()));
    temp1 = std::dynamic_pointer_cast<Forwards::Engine::CellRefEval>(std::dynamic_pointer_cast<Backwards::Types::CellRefValue>(res)->value);
-   ASSERT_TRUE(typeid(Forwards::Engine::Constant) == typeid(*temp1->value.get()));
-   ASSERT_TRUE(typeid(Forwards::Types::CellRefValue) == typeid(*std::dynamic_pointer_cast<Forwards::Engine::Constant>(temp1->value)->value.get()));
-   ras = std::dynamic_pointer_cast<Forwards::Engine::Constant>(temp1->value)->value;
+   ASSERT_TRUE(typeid(Forwards::Types::CellRefValue) == typeid(*temp1->value.get()));
+   ras = temp1->value;
    EXPECT_EQ(true, std::dynamic_pointer_cast<Forwards::Types::CellRefValue>(ras)->colAbsolute);
    EXPECT_EQ(0U, std::dynamic_pointer_cast<Forwards::Types::CellRefValue>(ras)->colRef);
    EXPECT_EQ(true, std::dynamic_pointer_cast<Forwards::Types::CellRefValue>(ras)->rowAbsolute);
@@ -1487,9 +1021,8 @@ TEST(EngineTests, testCellRangeExpand)
    ASSERT_TRUE(typeid(Backwards::Types::CellRefValue) == typeid(*res.get()));
    ASSERT_TRUE(typeid(Forwards::Engine::CellRefEval) == typeid(*std::dynamic_pointer_cast<Backwards::Types::CellRefValue>(res)->value.get()));
    temp1 = std::dynamic_pointer_cast<Forwards::Engine::CellRefEval>(std::dynamic_pointer_cast<Backwards::Types::CellRefValue>(res)->value);
-   ASSERT_TRUE(typeid(Forwards::Engine::Constant) == typeid(*temp1->value.get()));
-   ASSERT_TRUE(typeid(Forwards::Types::CellRefValue) == typeid(*std::dynamic_pointer_cast<Forwards::Engine::Constant>(temp1->value)->value.get()));
-   ras = std::dynamic_pointer_cast<Forwards::Engine::Constant>(temp1->value)->value;
+   ASSERT_TRUE(typeid(Forwards::Types::CellRefValue) == typeid(*temp1->value.get()));
+   ras = temp1->value;
    EXPECT_EQ(true, std::dynamic_pointer_cast<Forwards::Types::CellRefValue>(ras)->colAbsolute);
    EXPECT_EQ(3U, std::dynamic_pointer_cast<Forwards::Types::CellRefValue>(ras)->colRef);
    EXPECT_EQ(true, std::dynamic_pointer_cast<Forwards::Types::CellRefValue>(ras)->rowAbsolute);
@@ -1499,9 +1032,8 @@ TEST(EngineTests, testCellRangeExpand)
    ASSERT_TRUE(typeid(Backwards::Types::CellRefValue) == typeid(*res.get()));
    ASSERT_TRUE(typeid(Forwards::Engine::CellRefEval) == typeid(*std::dynamic_pointer_cast<Backwards::Types::CellRefValue>(res)->value.get()));
    temp1 = std::dynamic_pointer_cast<Forwards::Engine::CellRefEval>(std::dynamic_pointer_cast<Backwards::Types::CellRefValue>(res)->value);
-   ASSERT_TRUE(typeid(Forwards::Engine::Constant) == typeid(*temp1->value.get()));
-   ASSERT_TRUE(typeid(Forwards::Types::CellRefValue) == typeid(*std::dynamic_pointer_cast<Forwards::Engine::Constant>(temp1->value)->value.get()));
-   ras = std::dynamic_pointer_cast<Forwards::Engine::Constant>(temp1->value)->value;
+   ASSERT_TRUE(typeid(Forwards::Types::CellRefValue) == typeid(*temp1->value.get()));
+   ras = temp1->value;
    EXPECT_EQ(true, std::dynamic_pointer_cast<Forwards::Types::CellRefValue>(ras)->colAbsolute);
    EXPECT_EQ(5U, std::dynamic_pointer_cast<Forwards::Types::CellRefValue>(ras)->colRef);
    EXPECT_EQ(true, std::dynamic_pointer_cast<Forwards::Types::CellRefValue>(ras)->rowAbsolute);
@@ -1518,11 +1050,11 @@ TEST(EngineTests, testCellRefEval)
    NumberSystem::setCurrentNumberSystem(BCNUM_NUMBER_SYSTEM);
    Backwards::Types::CellRefValue defaulted (std::make_shared<Forwards::Engine::CellRefEval>());
    Backwards::Types::CellRefValue low (std::make_shared<Forwards::Engine::CellRefEval>(
-      std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 1))));
+      std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 1)));
    Backwards::Types::CellRefValue high (std::make_shared<Forwards::Engine::CellRefEval>(
-      std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 1, true, 2))));
+      std::make_shared<Forwards::Types::CellRefValue>(true, 1, true, 2)));
    Backwards::Types::CellRefValue med (std::make_shared<Forwards::Engine::CellRefEval>(
-      std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::StringValue>("Hi"))));
+      std::make_shared<Forwards::Types::StringValue>("Hi")));
 
    EXPECT_FALSE(low.equal(high));
    EXPECT_TRUE(low.notEqual(high));
@@ -1537,6 +1069,7 @@ TEST(EngineTests, testCellRefEval)
    EXPECT_NE(0U, med.hash());
 
       // All operations on defaulted will core.
+      // Now a typeid throws an exception. Different exception, but I won't depend on it.
    //EXPECT_THROW(low.equal(defaulted), Backwards::Engine::ProgrammingException);
    //EXPECT_THROW(low.sort(defaulted), Backwards::Engine::ProgrammingException);
  }
@@ -1545,17 +1078,17 @@ TEST(EngineTests, testCellRefEval_EqualCases)
  {
    NumberSystem::setCurrentNumberSystem(BCNUM_NUMBER_SYSTEM);
    Backwards::Types::CellRefValue un (std::make_shared<Forwards::Engine::CellRefEval>(
-      std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 0))));
+      std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 0)));
    Backwards::Types::CellRefValue deux (std::make_shared<Forwards::Engine::CellRefEval>(
-      std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(true, 0, false, 0))));
+      std::make_shared<Forwards::Types::CellRefValue>(true, 0, false, 0)));
    Backwards::Types::CellRefValue trois (std::make_shared<Forwards::Engine::CellRefEval>(
-      std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 0, true, 0))));
+      std::make_shared<Forwards::Types::CellRefValue>(false, 0, true, 0)));
    Backwards::Types::CellRefValue quatre (std::make_shared<Forwards::Engine::CellRefEval>(
-      std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 1, false, 0))));
+      std::make_shared<Forwards::Types::CellRefValue>(false, 1, false, 0)));
    Backwards::Types::CellRefValue cinq (std::make_shared<Forwards::Engine::CellRefEval>(
-      std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 1))));
+      std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 1)));
    Backwards::Types::CellRefValue six (std::make_shared<Forwards::Engine::CellRefEval>(
-      std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 0))));
+      std::make_shared<Forwards::Types::CellRefValue>(false, 0, false, 0)));
 
    EXPECT_FALSE(un.equal(deux));
    EXPECT_FALSE(un.equal(trois));
@@ -1631,7 +1164,7 @@ TEST(EngineTests, testCellEval)
 TEST(EngineTests, testName)
  {
    NumberSystem::setCurrentNumberSystem(BCNUM_NUMBER_SYSTEM);
-   std::shared_ptr<Forwards::Engine::Constant> one = std::make_shared<Forwards::Engine::Constant>(Forwards::Input::Token(), makeFloatValue("6"));
+   std::shared_ptr<Forwards::Types::ValueType> one = makeFloatValue("6");
    std::shared_ptr<Forwards::Types::ValueType> res;
    Forwards::Engine::CallingContext context;
    StringLogger logger;
@@ -1640,17 +1173,13 @@ TEST(EngineTests, testName)
    context.names = &names;
    names.insert(std::make_pair("Billy", one));
 
-   Forwards::Engine::Name name (Forwards::Input::Token(Forwards::Input::NAME, "Billy", 0U));
-   res = name.evaluate(context);
+   res = Forwards::Engine::ShuntingYard::Name(Forwards::Input::Token(Forwards::Input::NAME, "Billy", 0U), context);
 
    ASSERT_TRUE(typeid(Forwards::Types::FloatValue) == typeid(*res.get()));
    EXPECT_EQ(*NumberSystem::getCurrentNumberSystem().fromString("6"), *std::dynamic_pointer_cast<Forwards::Types::FloatValue>(res)->value);
-   EXPECT_EQ("_Billy", name.toString(1U, 1U, 0));
 
 
-   Forwards::Engine::Name nameBad (Forwards::Input::Token(Forwards::Input::NAME, "Johnny", 0U));
-   res = nameBad.evaluate(context);
+   res = Forwards::Engine::ShuntingYard::Name(Forwards::Input::Token(Forwards::Input::NAME, "Johnny", 0U), context);
 
    EXPECT_TRUE(typeid(Forwards::Types::NilValue) == typeid(*res.get()));
-   EXPECT_EQ("_Johnny", nameBad.toString(1U, 1U, 0));
  }

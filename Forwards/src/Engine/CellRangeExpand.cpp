@@ -31,7 +31,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include "Forwards/Engine/CellRangeExpand.h"
 #include "Forwards/Engine/CellRefEval.h"
-#include "Forwards/Engine/Expression.h"
 #include "Forwards/Types/CellRefValue.h"
 
 #include "Backwards/Types/ArrayValue.h"
@@ -64,8 +63,7 @@ namespace Engine
          result->value.emplace_back(
             std::make_shared<Backwards::Types::CellRefValue>(
                std::make_shared<CellRefEval>(
-                  std::make_shared<Constant>(Input::Token(),
-                     std::make_shared<Types::CellRefValue>(true, value->col1, true, value->row1)))));
+                  std::make_shared<Types::CellRefValue>(true, value->col1, true, value->row1))));
        }
       else if (value->col1 == value->col2)
        {
@@ -74,8 +72,7 @@ namespace Engine
             result->value.emplace_back(
                std::make_shared<Backwards::Types::CellRefValue>(
                   std::make_shared<CellRefEval>(
-                     std::make_shared<Constant>(Input::Token(),
-                        std::make_shared<Types::CellRefValue>(true, value->col1, true, row)))));
+                     std::make_shared<Types::CellRefValue>(true, value->col1, true, row))));
           }
        }
       else if (value->row1 == value->row2)
@@ -85,8 +82,7 @@ namespace Engine
             result->value.emplace_back(
                std::make_shared<Backwards::Types::CellRefValue>(
                   std::make_shared<CellRefEval>(
-                     std::make_shared<Constant>(Input::Token(),
-                        std::make_shared<Types::CellRefValue>(true, col, true, value->row1)))));
+                     std::make_shared<Types::CellRefValue>(true, col, true, value->row1))));
           }
        }
       else
@@ -115,8 +111,7 @@ namespace Engine
             result =
                std::make_shared<Backwards::Types::CellRefValue>(
                   std::make_shared<CellRefEval>(
-                     std::make_shared<Constant>(Input::Token(),
-                        std::make_shared<Types::CellRefValue>(true, value->col1, true, value->row1))));
+                     std::make_shared<Types::CellRefValue>(true, value->col1, true, value->row1)));
           }
        }
       else if (value->col1 == value->col2)
@@ -126,8 +121,7 @@ namespace Engine
             result =
                std::make_shared<Backwards::Types::CellRefValue>(
                   std::make_shared<CellRefEval>(
-                     std::make_shared<Constant>(Input::Token(),
-                        std::make_shared<Types::CellRefValue>(true, value->col1, true, value->row1 + index))));
+                     std::make_shared<Types::CellRefValue>(true, value->col1, true, value->row1 + index)));
           }
        }
       else if (value->row1 == value->row2)
@@ -137,8 +131,7 @@ namespace Engine
             result =
                std::make_shared<Backwards::Types::CellRefValue>(
                   std::make_shared<CellRefEval>(
-                     std::make_shared<Constant>(Input::Token(),
-                        std::make_shared<Types::CellRefValue>(true, value->col1 + index, true, value->row1))));
+                     std::make_shared<Types::CellRefValue>(true, value->col1 + index, true, value->row1)));
           }
        }
       else
