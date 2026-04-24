@@ -108,6 +108,11 @@ int main (int argc, char ** argv)
          NumberSystem::setCurrentNumberSystem(DAPFP_NUMBER_SYSTEM);
          ++file;
        }
+      else if (std::string("-7") == argv[file])
+       {
+         NumberSystem::setCurrentNumberSystem(X16CELL_NUMBER_SYSTEM);
+         ++file;
+       }
     }
    if (nullptr == &NumberSystem::getCurrentNumberSystem())
     {

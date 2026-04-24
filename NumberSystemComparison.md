@@ -16,3 +16,4 @@
 * -5     31  
 * -6     1000  
    I stopped here, with the exponent only 300 digits. I didn't bother to keep going.
+* -7     9

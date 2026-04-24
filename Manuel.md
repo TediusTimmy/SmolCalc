@@ -15,7 +15,7 @@ Both mpfr and libmpdec use the bc table for figuring out the resultant number of
 
 ## Starting the Program
 
-* The very first argument is one of `-0`, `-1`, `-2`, `-3`, `-4`, `-5`, or `-6`. This is the number system to use.
+* The very first argument is one of `-0`, `-1`, `-2`, `-3`, `-4`, `-5`, `-6`, or `-7`. This is the number system to use.
 * The next accepted argument is `-l`, which specifies a Backwards library file to load. There can be a chain of multiple libraries, however: `-l MyBetterLib.txt -l TheBaseLibrarySucks.txt`. These must be at the beginning.
 * The following accepted argument is `-b`, which initiates batch mode. For each `-b` argument, the next argument is expected to be a formula to evaluate. The program will evaluate each batch command and then stop before entering interactive mode. This can be used to: use SmolCalc as a command-line calculator; query the contents of a spreadsheet from a shell script; or output the value of a cell whose contents are too large to see in interactive mode.
 * After that is one-and-only-one `-i` to indicate a csv file to import.

@@ -131,7 +131,7 @@ obj/libmpdec/transpose.o: external/libmpdec/transpose.c | obj/libmpdec
 	$(CC) $(LIBMPDEC_FLAGS) -c -o obj/libmpdec/transpose.o external/libmpdec/transpose.c
 
 
-lib/NumLib.a: obj/NumLib/NumberHolder.o obj/NumLib/NumberSystem.o obj/NumLib/BCNum_NumberSystem.o obj/NumLib/libdecmath_NumberSystem.o obj/NumLib/SlowFloat_NumberSystem.o obj/NumLib/SlowFloat.o obj/NumLib/double_NumberSystem.o obj/NumLib/libmpdec_NumberSystem.o obj/NumLib/mpfr_NumberSystem.o obj/NumLib/Float.o obj/NumLib/FloatFixed.o obj/NumLib/DAPFP_NumberSystem.o | lib
+lib/NumLib.a: obj/NumLib/NumberHolder.o obj/NumLib/NumberSystem.o obj/NumLib/BCNum_NumberSystem.o obj/NumLib/libdecmath_NumberSystem.o obj/NumLib/SlowFloat_NumberSystem.o obj/NumLib/SlowFloat.o obj/NumLib/double_NumberSystem.o obj/NumLib/libmpdec_NumberSystem.o obj/NumLib/mpfr_NumberSystem.o obj/NumLib/Float.o obj/NumLib/FloatFixed.o obj/NumLib/DAPFP_NumberSystem.o obj/NumLib/floats.o obj/NumLib/x16cell_NumberSystem.o | lib
 	ar -rsc lib/NumLib.a obj/NumLib/*.o
 
 obj/NumLib/NumberHolder.o: Numbers/NumberHolder.cpp | obj/NumLib
@@ -169,6 +169,12 @@ obj/NumLib/FloatFixed.o: Numbers/DAPFP/FloatFixed.cpp | obj/NumLib
 
 obj/NumLib/DAPFP_NumberSystem.o: Numbers/DAPFP_NumberSystem.cpp | obj/NumLib
 	$(CCP) $(CFLAGS) -c -o obj/NumLib/DAPFP_NumberSystem.o Numbers/DAPFP_NumberSystem.cpp
+
+obj/NumLib/floats.o: Numbers/x16cell/floats.c | obj/NumLib
+	$(CC) $(CFLAGS) -c -o obj/NumLib/floats.o Numbers/x16cell/floats.c
+
+obj/NumLib/x16cell_NumberSystem.o: Numbers/x16cell_NumberSystem.cpp | obj/NumLib
+	$(CCP) $(CFLAGS) -c -o obj/NumLib/x16cell_NumberSystem.o Numbers/x16cell_NumberSystem.cpp
 
 
 lib/backwards.a: obj/Backwards/CallingContext.o obj/Backwards/ConstantsSingleton.o obj/Backwards/Expression.o obj/Backwards/Statement.o obj/Backwards/StdLib.o obj/Backwards/BufferedGenericInput.o obj/Backwards/Lexer.o obj/Backwards/LineBufferedStreamInput.o obj/Backwards/StringInput.o obj/Backwards/ContextBuilder.o obj/Backwards/DebuggerHook.o obj/Backwards/Eval.o obj/Backwards/Parser.o obj/Backwards/SymbolTable.o obj/Backwards/ArrayValue.o obj/Backwards/CellRangeValue.o obj/Backwards/CellRefValue.o obj/Backwards/DictionaryValue.o obj/Backwards/FloatValue.o obj/Backwards/FunctionValue.o obj/Backwards/NilValue.o obj/Backwards/StringValue.o obj/Backwards/ValueType.o | lib

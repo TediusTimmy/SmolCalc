@@ -37,6 +37,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "libmpdec_NumberSystem.h"
 #include "mpfr_NumberSystem.h"
 #include "DAPFP_NumberSystem.h"
+#include "x16cell_NumberSystem.h"
 
 BCNum_NumberSystem system0;
 libdecmath_NumberSystem system1;
@@ -45,6 +46,7 @@ double_NumberSystem system3;
 libmpdec_NumberSystem system4;
 mpfr_NumberSystem system5;
 DAPFP_NumberSystem system6;
+x16cell_NumberSystem system7;
 
 NumberSystem* NumberSystem::currentNumberSystem = nullptr;
 NumberSystem_Round_Mode NumberSystem::currentRoundMode = ROUND_TIES_EVEN;
@@ -85,6 +87,10 @@ void NumberSystem::setCurrentNumberSystem(NumberSystem_System system)
    case DAPFP_NUMBER_SYSTEM:
       currentNumberSystem = &system6;
       system6.setRoundMode(currentRoundMode);
+      break;
+   case X16CELL_NUMBER_SYSTEM:
+      currentNumberSystem = &system7;
+      currentRoundMode = ROUND_ZERO;
       break;
     }
  }
