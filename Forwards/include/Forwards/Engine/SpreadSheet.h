@@ -85,6 +85,8 @@ namespace Engine
       std::shared_ptr<Types::ValueType> computeCell(CallingContext&, size_t col, size_t row);
       void recalc(CallingContext&);
 
+      static std::string reinterpret (const std::string& src, size_t src_col, size_t src_row, size_t dest_col, size_t dest_row);
+
    private:
       void swap(size_t col1, size_t col2, size_t row); // col2 > col1
     };

@@ -83,6 +83,8 @@ namespace Engine
 
       static std::shared_ptr<Types::FloatValue> FLOAT_ONE();
       static std::shared_ptr<Types::FloatValue> FLOAT_ZERO();
+
+      static std::shared_ptr<Types::ValueType> cellref (const Input::Token&, size_t, size_t);
     };
 
  } // namespace Engine

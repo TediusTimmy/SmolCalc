@@ -671,7 +671,10 @@ int ProcessInput(SharedData& data)
          data.inputMode = false;
          if (CELL_MODIFICATION == data.mode)
           {
-            curCell->value = data.tempString;
+            if (Forwards::Engine::VALUE == curCell->type)
+               curCell->value = Forwards::Engine::SpreadSheet::reinterpret(data.tempString, data.c_col, data.c_row, data.c_col, data.c_row);
+            else
+               curCell->value = data.tempString;
             recalcSheet = true;
           }
          else if (GOTO_CELL == data.mode)
@@ -1459,6 +1462,52 @@ int ProcessInput(SharedData& data)
                 }
              }
        }
+         break;
+      case 'R':
+         if (nullptr != curCell)
+          {
+            if (("" != curCell->value) && (Forwards::Engine::VALUE == curCell->type))
+             {
+               size_t ur = data.c_row + 1U;
+               if (ur > MAX_ROW) ur = 0U;
+               curCell->value = Forwards::Engine::SpreadSheet::reinterpret(curCell->value, data.c_col, data.c_row, data.c_col, ur);
+             }
+          }
+         break;
+      case 'r':
+         if (nullptr != curCell)
+          {
+            if (("" != curCell->value) && (Forwards::Engine::VALUE == curCell->type))
+             {
+               size_t ur = data.c_row;
+               if (0U == ur) ur = MAX_ROW;
+               else ur -= 1U;
+               curCell->value = Forwards::Engine::SpreadSheet::reinterpret(curCell->value, data.c_col, data.c_row, data.c_col, ur);
+             }
+          }
+         break;
+      case 'C':
+         if (nullptr != curCell)
+          {
+            if (("" != curCell->value) && (Forwards::Engine::VALUE == curCell->type))
+             {
+               size_t uc = data.c_col + 1U;
+               if (uc > MAX_COL) uc = 0U;
+               curCell->value = Forwards::Engine::SpreadSheet::reinterpret(curCell->value, data.c_col, data.c_row, uc, data.c_row);
+             }
+          }
+         break;
+      case 'c':
+         if (nullptr != curCell)
+          {
+            if (("" != curCell->value) && (Forwards::Engine::VALUE == curCell->type))
+             {
+               size_t uc = data.c_col;
+               if (0U == uc) uc = MAX_COL;
+               else uc -= 1U;
+               curCell->value = Forwards::Engine::SpreadSheet::reinterpret(curCell->value, data.c_col, data.c_row, uc, data.c_row);
+             }
+          }
          break;
        }
       recalcSheet = true;

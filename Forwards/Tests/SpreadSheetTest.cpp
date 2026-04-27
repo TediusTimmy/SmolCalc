@@ -913,3 +913,10 @@ TEST(EngineTests, testSpreadSheet_TestInsertRowCol)
    ASSERT_EQ(2U, shet.sheet[1].size());
    ASSERT_EQ(2U, shet.max_row);
  }
+
+TEST(EngineTests, reinterpretTests)
+ {
+   EXPECT_EQ("A2+5", Forwards::Engine::SpreadSheet::reinterpret("A1+5", 0, 0, 0, 1));
+   EXPECT_EQ("\"Hello\"&A2", Forwards::Engine::SpreadSheet::reinterpret("\"Hello\"&A1", 0, 0, 0, 1));
+   EXPECT_EQ("_Hello+B1", Forwards::Engine::SpreadSheet::reinterpret("_Hello+A1", 0, 0, 1, 0));
+ }

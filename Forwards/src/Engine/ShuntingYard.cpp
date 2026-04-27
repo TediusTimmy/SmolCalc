@@ -151,7 +151,7 @@ namespace Engine
       popOp(operationStack, tokenStack);
     }
 
-   static std::shared_ptr<Types::ValueType> cellref (const Input::Token& ref, size_t col, size_t row)
+   std::shared_ptr<Types::ValueType> ShuntingYard::cellref (const Input::Token& ref, size_t col, size_t row)
     {
       bool colAbsolute = false, rowAbsolute = false;
       int64_t r_col, r_row;

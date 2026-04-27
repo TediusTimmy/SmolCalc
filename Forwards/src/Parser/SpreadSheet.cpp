@@ -417,6 +417,36 @@ namespace Engine
        }
     }
 
+   std::string SpreadSheet::reinterpret (const std::string& src, size_t src_col, size_t src_row, size_t dest_col, size_t dest_row)
+    {
+      std::string result;
+      Backwards::Input::StringInput interlinked (src);
+      Input::Lexer lexer (interlinked);
+      std::shared_ptr<Types::ValueType> temp;
+      while (Input::END_OF_FILE != lexer.peekNextToken().lexeme)
+       {
+         Input::Token buildToken = lexer.getNextToken();
+         switch (buildToken.lexeme)
+          {
+         default:
+            result += buildToken.text;
+            break;
+         case Input::CELL_REFERENCE:
+            temp = Engine::ShuntingYard::cellref(buildToken, src_col, src_row);
+            result += temp->toString(dest_col, dest_row, true);
+            break;
+         case Input::STRING:
+            temp = std::make_shared<Types::StringValue>(buildToken.text);
+            result += temp->toString(dest_col, dest_row, true);
+            break;
+         case Input::NAME:
+            result += "_" + buildToken.text;
+            break;
+          }
+       }
+      return result;
+    }
+
  } // namespace Engine
 
  } // namespace Forwards
