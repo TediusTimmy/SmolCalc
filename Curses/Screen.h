@@ -66,6 +66,8 @@ public:
    std::vector<Forwards::Engine::CellType> yankedType;
    std::vector<std::string> yanked;
    size_t yankedCols;
+   size_t y_col;
+   size_t y_row;
    size_t m_col;
    size_t m_row;
 

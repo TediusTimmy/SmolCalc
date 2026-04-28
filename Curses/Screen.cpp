@@ -927,6 +927,8 @@ int ProcessInput(SharedData& data)
             data.yanked.resize(1U);
             data.yanked[0] = curCell->value;
             data.yankedCols = 1U;
+            data.y_col = data.c_col;
+            data.y_row = data.c_row;
           }
          break;
       case 'c':
@@ -963,6 +965,8 @@ int ProcessInput(SharedData& data)
                data.yankedType[i] = Forwards::Engine::ERROR;
              }
           }
+         data.y_col = data.c_col;
+         data.y_row = 0U;
        }
          break;
       case 'r':
@@ -995,6 +999,8 @@ int ProcessInput(SharedData& data)
                data.yankedType[i] = Forwards::Engine::ERROR;
              }
           }
+         data.y_col = 0U;
+         data.y_row = data.c_row;
        }
          break;
       case 'm':
@@ -1021,6 +1027,8 @@ int ProcessInput(SharedData& data)
                 }
              }
          data.yankedCols = mc - bc + 1U;
+         data.y_col = data.m_col;
+         data.y_row = data.m_row;
        }
          break;
       case 'd':
@@ -1047,6 +1055,10 @@ int ProcessInput(SharedData& data)
             curCell->type = data.yankedType[0];
             curCell->value = data.yanked[0];
             recalcSheet = true;
+            if (Forwards::Engine::VALUE == curCell->type)
+             {
+               curCell->value = Forwards::Engine::SpreadSheet::reinterpret(curCell->value, data.y_col, data.y_row, data.c_col, data.c_row);
+             }
           }
          break;
       case 'c':
@@ -1062,6 +1074,10 @@ int ProcessInput(SharedData& data)
                 }
                tempCell->type = data.yankedType[i];
                tempCell->value = data.yanked[i];
+               if (Forwards::Engine::VALUE == tempCell->type)
+                {
+                  tempCell->value = Forwards::Engine::SpreadSheet::reinterpret(tempCell->value, data.y_col, data.y_row + i, data.c_col, i);
+                }
              }
           }
          recalcSheet = true;
@@ -1081,6 +1097,10 @@ int ProcessInput(SharedData& data)
                 }
                tempCell->type = data.yankedType[i];
                tempCell->value = data.yanked[i];
+               if (Forwards::Engine::VALUE == tempCell->type)
+                {
+                  tempCell->value = Forwards::Engine::SpreadSheet::reinterpret(tempCell->value, data.y_col + i, data.y_row, i, data.c_row);
+                }
              }
           }
          recalcSheet = true;
@@ -1103,6 +1123,10 @@ int ProcessInput(SharedData& data)
                    }
                   tempCell->type = data.yankedType[i];
                   tempCell->value = data.yanked[i];
+                  if (Forwards::Engine::VALUE == tempCell->type)
+                   {
+                     tempCell->value = Forwards::Engine::SpreadSheet::reinterpret(tempCell->value, data.y_col + (_c - data.c_col), data.y_row + (_r - data.c_row), _c, _r);
+                   }
                 }
                ++i;
              }
@@ -1126,6 +1150,10 @@ int ProcessInput(SharedData& data)
                    }
                   tempCell->type = data.yankedType[i];
                   tempCell->value = data.yanked[i];
+                  if (Forwards::Engine::VALUE == tempCell->type)
+                   {
+                     tempCell->value = Forwards::Engine::SpreadSheet::reinterpret(tempCell->value, data.y_col + (_c - data.c_col), data.y_row + (_r - data.c_row), _c, _r);
+                   }
                 }
                ++i;
              }
@@ -1152,6 +1180,10 @@ int ProcessInput(SharedData& data)
                    }
                   tempCell->type = data.yankedType[i];
                   tempCell->value = data.yanked[i];
+                  if (Forwards::Engine::VALUE == tempCell->type)
+                   {
+                     tempCell->value = Forwards::Engine::SpreadSheet::reinterpret(tempCell->value, data.y_col + (_c - bc), data.y_row + (_r - br), _c, _r);
+                   }
                 }
                ++i;
              }
@@ -1178,6 +1210,10 @@ int ProcessInput(SharedData& data)
                    }
                   tempCell->type = data.yankedType[i];
                   tempCell->value = data.yanked[i];
+                  if (Forwards::Engine::VALUE == tempCell->type)
+                   {
+                     tempCell->value = Forwards::Engine::SpreadSheet::reinterpret(tempCell->value, data.y_col + (_c - bc), data.y_row + (_r - br), _c, _r);
+                   }
                 }
                ++i;
              }
